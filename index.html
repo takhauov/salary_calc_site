@@ -660,6 +660,7 @@
         <div class="item"><div class="label">Аванс</div><div class="value" id="rop-mini-advance">0 ₽</div></div>
         <div class="item"><div class="label">Валовая маржа, всего</div><div class="value" id="rop-mini-margin">0 ₽</div></div>
         <div class="item"><div class="label">Премия (3%)</div><div class="value" id="rop-mini-premium">0 ₽</div></div>
+        <div class="item"><div class="label">Начислено всего</div><div class="value" id="rop-mini-total">0 ₽</div></div>
       </div>
     </div>
 
@@ -2143,6 +2144,7 @@ function ropRender() {
   document.getElementById('rop-mini-advance').textContent = fmt(advance);
   document.getElementById('rop-mini-margin').textContent = fmt(marginSum);
   document.getElementById('rop-mini-premium').textContent = fmt(premium);
+  document.getElementById('rop-mini-total').textContent = fmt(oklad + premium);
 }
 
 ropOkladInput.addEventListener('input', ropRender);
