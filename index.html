@@ -1,0 +1,2763 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Расчёт ЗП — менеджер ВБ</title>
+<style>
+  :root{
+    --bg: #EFEEE8;
+    --paper: #FFFFFF;
+    --ink: #1B1F1D;
+    --muted: #6B7268;
+    --line: #DDD8CB;
+    --accent: #1F5C55;
+    --accent-soft: #E3EEEC;
+    --catA: #1F5C55;
+    --catA-bg: #E3EEEC;
+    --catB: #8A6A16;
+    --catB-bg: #F3EBD8;
+    --catC: #9C4A32;
+    --catC-bg: #F3E7E2;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; }
+  body {
+    background:var(--bg); color:var(--ink);
+    font-family: "Segoe UI", -apple-system, "IBM Plex Sans", Arial, sans-serif;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.45;
+    padding: 28px;
+  }
+  .layout {
+    max-width: 1180px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 24px;
+  }
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+  h1 {
+    font-size: 21px;
+    font-weight: 650;
+    margin: 0 0 4px 0;
+    letter-spacing: -0.01em;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 13.5px;
+    margin: 0 0 20px 0;
+  }
+  .sidebar {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 18px;
+    align-self: start;
+    position: sticky;
+    top: 20px;
+  }
+  .field { margin-bottom: 16px; }
+  .field label {
+    display:block;
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-bottom: 5px;
+  }
+  select, input[type=number], input[type=text], input[type=month] {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    font-size: 14px;
+    background: #fff;
+    color: var(--ink);
+    font-family: inherit;
+  }
+  select:focus, input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .tariff-note {
+    font-size: 12.5px;
+    color: var(--muted);
+    background: var(--accent-soft);
+    border-radius: 7px;
+    padding: 10px 11px;
+    margin-top: 4px;
+  }
+  .presets { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; }
+  .presets p { font-size: 12.5px; color: var(--muted); margin: 0 0 8px 0; }
+  .preset-btn {
+    display:block; width:100%; text-align:left;
+    background: #fff; border: 1px solid var(--line); border-radius: 7px;
+    padding: 8px 10px; font-size: 13px; margin-bottom: 6px; cursor: pointer;
+    color: var(--ink);
+  }
+  .preset-btn:hover { border-color: var(--accent); }
+
+  .history-item {
+    display:flex; align-items:center; justify-content:space-between; gap:6px;
+    background: #fff; border: 1px solid var(--line); border-radius: 7px;
+    padding: 7px 10px; font-size: 13px; margin-bottom: 6px; cursor: pointer;
+  }
+  .history-item:hover { border-color: var(--accent); }
+  .history-item .hist-info { display:flex; flex-direction: column; }
+  .history-item .hist-month { font-weight: 600; }
+  .history-item .hist-total { color: var(--muted); font-size: 12px; }
+  .history-item .hist-remove {
+    background:none; border:none; color: var(--muted); cursor:pointer; font-size:15px; padding:2px 5px; border-radius:5px;
+  }
+  .history-item .hist-remove:hover { background: var(--catC-bg); color: var(--catC); }
+  .history-empty { font-size: 12.5px; color: var(--muted); margin: 0 0 8px 0; }
+
+  .summary-bar {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .summary-figure .label { font-size: 12.5px; color: var(--muted); margin-bottom: 3px; }
+  .summary-figure .value { font-size: 30px; font-weight: 650; letter-spacing: -0.01em; }
+  .summary-mini { display:flex; gap: 28px; flex-wrap: wrap; }
+  .summary-mini .item .label { font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+  .summary-mini .item .value { font-size: 16px; font-weight: 600; }
+
+  .card {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    text-align: left;
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 600;
+    padding: 10px 10px;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  tbody td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line);
+    font-size: 13.5px;
+    vertical-align: middle;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td input[type=text], td input[type=number] {
+    padding: 6px 8px; font-size: 13.5px;
+  }
+  .col-name { min-width: 150px; }
+  .col-num { width: 108px; }
+  .cat-badge {
+    display:inline-block; padding: 3px 8px; border-radius: 20px;
+    font-size: 12px; font-weight: 600;
+  }
+  .cat-A { background: var(--catA-bg); color: var(--catA); }
+  .cat-B { background: var(--catB-bg); color: var(--catB); }
+  .cat-C { background: var(--catC-bg); color: var(--catC); }
+  .bonus-total { font-weight: 600; }
+  .row-remove {
+    background: none; border: none; color: var(--muted); cursor: pointer;
+    font-size: 16px; line-height:1; padding: 4px 6px; border-radius: 6px;
+  }
+  .row-remove:hover { background: var(--catC-bg); color: var(--catC); }
+  .table-actions { padding: 12px 10px; }
+  .add-btn {
+    background: var(--accent); color: #fff; border: none; border-radius: 7px;
+    padding: 9px 14px; font-size: 13.5px; cursor: pointer; font-weight: 550;
+  }
+  .add-btn:hover { opacity: 0.9; }
+  .cat-override {
+    font-size: 11.5px; color: var(--muted); cursor: pointer; margin-top: 2px; display:block;
+  }
+  .foot-note {
+    font-size: 12.5px; color: var(--muted); margin-top: 14px; padding: 0 4px;
+  }
+  .drr-col { display: none; }
+  .show-drr .drr-col { display: table-cell; }
+
+  .tabs {
+    max-width: 1180px; margin: 0 auto 18px auto; display: flex; gap: 8px;
+  }
+  .tab-btn {
+    background: #fff; border: 1px solid var(--line); border-radius: 8px;
+    padding: 9px 16px; font-size: 14px; cursor: pointer; color: var(--muted); font-weight: 550;
+  }
+  .tab-btn.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .off-split { display:flex; gap: 20px; margin-top: 10px; flex-wrap: wrap; }
+  .off-split .item .label { font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+  .off-split .item .value { font-size: 15px; font-weight: 600; }
+
+  .backup-bar {
+    max-width: 1180px; margin: 0 auto 10px auto; display: flex; gap: 8px; align-items: center;
+  }
+  .ved-layout { grid-template-columns: 1fr; }
+  .ved-source-badge {
+    display:inline-block; padding: 2px 7px; border-radius: 6px; font-size: 11px; font-weight: 600;
+    background: var(--accent-soft); color: var(--accent); margin-left: 6px;
+  }
+  .ved-total-row td { font-weight: 700; border-top: 2px solid var(--ink); }
+  td input[type=checkbox] { width: 18px; height: 18px; }
+  .col-wide { min-width: 120px; }
+  .ved-cell { display:flex; align-items:center; gap:4px; }
+  .ved-cell input[type=number] { width: 90px; }
+  .ved-paid-toggle {
+    border: 1px solid var(--line); background:#fff; border-radius:5px; width:22px; height:22px;
+    font-size:12px; line-height:1; cursor:pointer; color: var(--muted); flex-shrink:0;
+  }
+  td.ved-paid { background: #DCEEDD; }
+  td.ved-paid .ved-paid-toggle { background: #2F8F4E; color:#fff; border-color:#2F8F4E; }
+
+  /* --- Загрузка отчётов --- */
+  #tab-up main { grid-column: 1 / -1; }
+  .up-drop { border: 2px dashed var(--line); border-radius: 12px; padding: 26px; text-align: center; color: var(--muted); cursor: pointer; background: #FBFAF6; margin: 12px 0; }
+  .up-drop.over { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+  .up-drop strong { color: var(--ink); }
+  .up-file { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin: 8px 0; background: #fff; }
+  .up-file-head { display: flex; gap: 10px; align-items: center; }
+  .up-file-head .up-x { margin-left: auto; border: 0; background: none; cursor: pointer; color: var(--muted); font-size: 14px; }
+  .up-badge { font-size: 11.5px; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 2px 9px; }
+  .up-file-meta { font-size: 13px; color: var(--muted); margin-top: 3px; }
+  .up-file-role { font-size: 13px; margin-top: 6px; }
+  .up-file-role select, .up-table select { font: inherit; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: #fff; max-width: 260px; }
+  .up-feed { padding: 16px 18px; margin: 16px 0; }
+  .up-feed h2 { font-size: 16.5px; margin: 0 0 10px 0; }
+  .up-table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-top: 8px; }
+  .up-table th { text-align: left; font-weight: 600; color: var(--muted); font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  .up-table td { padding: 5px 8px; border-bottom: 1px solid #EFEDE4; }
+  .up-table .num { text-align: right; white-space: nowrap; }
+  .up-table tr.up-unmapped td { background: #FBF1DC; }
+  .up-table tr.up-kept td { color: var(--muted); font-style: italic; }
+  .up-plan { margin-top: 12px; }
+  .up-plan label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 4px; }
+  .up-plan textarea { width: 100%; font: inherit; font-size: 13px; border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+  .up-plan-input { width: 76px; font: inherit; text-align: right; border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px; }
+  .up-total { margin-top: 10px; font-size: 14.5px; }
+  .up-warn { font-size: 12.5px; color: var(--catC); margin: 6px 0 0 0; }
+  .up-details summary { cursor: pointer; font-size: 13.5px; color: var(--accent); }
+  .up-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 14px 18px; }
+  .up-btn { font: inherit; border: 1px solid var(--accent); background: var(--accent); color: #fff; border-radius: 8px; padding: 9px 16px; cursor: pointer; }
+  .up-btn:disabled { opacity: .45; cursor: default; }
+  .up-btn.ghost { background: #fff; color: var(--ink); border-color: var(--line); }
+  .cat-A { color: var(--catA); font-weight: 600; } .cat-B { color: var(--catB); font-weight: 600; } .cat-C { color: var(--catC); font-weight: 600; } .cat-0 { color: var(--muted); }
+  /* GitHub */
+  #gh-panel { display: none; max-width: 1180px; margin: 0 auto 16px auto; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; }
+  #gh-panel.open { display: block; }
+  #gh-panel .gh-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px 14px; }
+  #gh-panel label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 2px; }
+  #gh-panel input[type=text], #gh-panel input[type=password] { width: 100%; font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; }
+  #gh-panel .gh-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
+  #gh-status { font-size: 13px; color: var(--muted); }
+  #gh-status.ok { color: #2F8F4E; } #gh-status.warn { color: var(--catB); } #gh-status.err { color: var(--catC); }
+  #gh-banner { display: none; max-width: 1180px; margin: 0 auto 12px auto; background: #F3EBD8; border: 1px solid #E3D3A8; color: #6C5410; border-radius: 8px; padding: 9px 14px; font-size: 13.5px; }
+</style>
+</head>
+<body>
+
+<div class="backup-bar">
+  <button class="tab-btn" id="backup-export-btn">⭳ Экспорт бэкапа</button>
+  <button class="tab-btn" id="backup-import-btn">⭱ Импортировать бэкап</button>
+  <button class="tab-btn" id="gh-toggle-btn">☁ GitHub</button>
+  <input type="file" id="backup-import-file" accept="application/json" style="display:none;">
+  <span class="tariff-note" id="backup-status" style="background:none; padding:0; margin:0;"></span>
+</div>
+
+<div id="gh-banner"></div>
+<div id="gh-panel">
+  <strong>Хранение данных в GitHub</strong>
+  <p class="subtitle" style="margin:4px 0 12px 0;">Данные расчётов лежат одним файлом в вашем <b>приватном</b> репозитории и сохраняются автоматически. Токен хранится только в этом браузере.</p>
+  <div class="gh-grid">
+    <div><label>Владелец (логин или организация)</label><input type="text" id="gh-owner" placeholder="например, ivanov"></div>
+    <div><label>Репозиторий</label><input type="text" id="gh-repo" placeholder="salary-calc"></div>
+    <div><label>Ветка</label><input type="text" id="gh-branch" placeholder="main"></div>
+    <div><label>Файл с данными</label><input type="text" id="gh-path" placeholder="data/state.json"></div>
+    <div><label>Токен (fine-grained, Contents: Read and write)</label><input type="password" id="gh-token" placeholder="github_pat_…"></div>
+  </div>
+  <div class="gh-row">
+    <label style="display:flex;gap:6px;align-items:center;margin:0;"><input type="checkbox" id="gh-auto"> сохранять автоматически после каждого изменения</label>
+  </div>
+  <div class="gh-row">
+    <button class="up-btn" id="gh-save-settings">Сохранить настройки</button>
+    <button class="up-btn ghost" id="gh-pull">⭳ Загрузить из GitHub</button>
+    <button class="up-btn ghost" id="gh-push">⭱ Перезаписать данными этого браузера</button>
+    <span id="gh-status"></span>
+  </div>
+  <div class="gh-row">
+    <button class="up-btn ghost" id="gh-backup-now">🗄 Сделать бэкап сейчас</button>
+    <button class="up-btn ghost" id="gh-backup-list">Показать бэкапы</button>
+    <span style="font-size:12px;color:var(--muted)">Авто: раз в день, хранятся последние 60 (папка data/backups)</span>
+  </div>
+  <div id="gh-backups" style="margin-top:8px;font-size:13px"></div>
+</div>
+
+<div class="tabs">
+  <button class="tab-btn" data-tab="up">Загрузка отчётов</button>
+  <button class="tab-btn active" data-tab="wb">Менеджер ВБ</button>
+  <button class="tab-btn" data-tab="oz">Менеджер Озон</button>
+  <button class="tab-btn" data-tab="ym">Менеджер ЯМ</button>
+  <button class="tab-btn" data-tab="rop">РОП</button>
+  <button class="tab-btn" data-tab="as">Ассистент</button>
+  <button class="tab-btn" data-tab="ved">Ведомость</button>
+</div>
+
+<div class="layout" id="tab-up" style="display:none;">
+  <main>
+    <div class="card" style="padding:18px 20px;">
+      <h1>Загрузка отчётов</h1>
+      <p class="subtitle">Перетащите сюда экономические отчёты (.xlsm). Файлы никуда не отправляются: они читаются прямо в вашем браузере.</p>
+      <div class="field" style="max-width:240px;"><label for="up-month">Расчётный месяц</label><input type="month" id="up-month"></div>
+      <p class="tariff-note" id="up-weeks-hint"></p>
+      <div class="up-drop" id="up-drop"><strong>Перетащите отчёты сюда</strong> или нажмите, чтобы выбрать<br><span style="font-size:12.5px;">WB, Озон, ЯМ — любое число файлов сразу, включая кабинеты ИП Тарасов и дополнительные</span></div>
+      <input type="file" id="up-file-input" multiple accept=".xlsm,.xlsx" style="display:none;">
+      <div id="up-status" class="tariff-note" style="background:none;padding:0;"></div>
+      <div id="up-files"></div>
+    </div>
+    <div id="up-feeds"></div>
+    <div class="card up-actions">
+      <button class="up-btn" id="up-apply" disabled>Записать в расчёт</button>
+      <button class="up-btn ghost" id="up-clear">Очистить список</button>
+      <label style="font-size:13px;display:flex;gap:6px;align-items:center;"><input type="checkbox" id="up-replace"> полностью заменить строки месяца (по умолчанию строки, которых нет в загруженных файлах, остаются)</label>
+      <span class="tariff-note" style="background:none;padding:0;margin:0;">Перед загрузкой в Excel выберите нужные недели в срезе и сохраните файл — программа читает то, что сохранено в отчёте.</span>
+    </div>
+  </main>
+</div>
+
+<div class="layout" id="tab-wb">
+  <aside class="sidebar">
+    <h1>Расчёт ЗП</h1>
+    <p class="subtitle">Менеджер ВБ &mdash; SEKAI / MELD</p>
+
+    <div class="field">
+      <label for="period-month">Расчётный месяц</label>
+      <input type="month" id="period-month" value="2026-09">
+    </div>
+
+    <div class="field">
+      <label for="tariff-select">Тарифная сетка</label>
+      <select id="tariff-select"></select>
+    </div>
+
+    <div class="field">
+      <label for="oklad-input">Оклад, ₽</label>
+      <input type="number" id="oklad-input" step="500">
+    </div>
+
+    <div class="tariff-note" id="tariff-note"></div>
+
+    <div class="presets">
+      <p>История расчётов</p>
+      <div id="history-list"></div>
+      <button class="add-btn" id="save-calc-btn" style="width:100%; margin-top:6px;">Сохранить расчёт за месяц</button>
+      <p class="tariff-note" style="margin-top:8px;">Сохраняется в этом браузере на этом компьютере. При открытии файла на другом устройстве или в другом браузере история будет пустой.</p>
+    </div>
+
+    <div class="presets">
+      <p>Проверить на прошлых месяцах</p>
+      <button class="preset-btn" data-preset="clear">Очистить и начать новый расчёт</button>
+    </div>
+  </aside>
+
+  <main>
+    <div class="summary-bar">
+      <div class="summary-figure">
+        <div class="label">К доплате за месяц</div>
+        <div class="value" id="final-value">0 ₽</div>
+      </div>
+      <div class="summary-mini">
+        <div class="item"><div class="label">Оклад</div><div class="value" id="mini-oklad">0 ₽</div></div>
+        <div class="item"><div class="label">Аванс (оклад/2)</div><div class="value" id="mini-advance">0 ₽</div></div>
+        <div class="item"><div class="label">Сумма бонусов</div><div class="value" id="mini-bonus">0 ₽</div></div>
+        <div class="item"><div class="label">Начислено всего</div><div class="value" id="mini-total">0 ₽</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <table id="rows-tbl">
+        <thead>
+          <tr>
+            <th class="col-name">Артикул</th>
+            <th class="col-num">Марж. прибыль, ₽</th>
+            <th class="col-num">Категория</th>
+            <th class="col-num">% плана</th>
+            <th class="col-num">% маржинальности</th>
+            <th class="col-num drr-col">% ДРР</th>
+            <th class="col-num">Бонус за план</th>
+            <th class="col-num">Бонус за маржу</th>
+            <th class="col-num drr-col">Бонус за ДРР</th>
+            <th class="col-num">Итого бонус</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="rows-body"></tbody>
+      </table>
+      <div class="table-actions">
+        <button class="add-btn" id="add-row">+ Добавить артикул</button>
+      </div>
+    </div>
+
+    <p class="foot-note">Категория определяется автоматически по марж. прибыли (A: &gt;100&nbsp;тыс.₽, B: 50&ndash;100&nbsp;тыс.₽, C: &lt;50&nbsp;тыс.₽) &mdash; по категории C бонус всегда 0. Можно переопределить вручную, кликнув по значку категории.</p>
+  </main>
+</div>
+
+<div class="layout" id="tab-oz" style="display:none;">
+  <aside class="sidebar">
+    <h1>Расчёт ЗП</h1>
+    <p class="subtitle">Менеджер Озон &mdash; SEKAI / MELD</p>
+
+    <div class="field">
+      <label for="oz-period-month">Расчётный месяц</label>
+      <input type="month" id="oz-period-month" value="2026-09">
+    </div>
+
+    <div class="tariff-note">KPI 2025 &mdash; оклад 25 000 ₽, категории A/B/C (действует с окт. 2025)</div>
+
+    <div class="field" style="margin-top:14px;">
+      <label for="oz-oklad-input">Оклад, ₽</label>
+      <input type="number" id="oz-oklad-input" step="500" value="25000">
+    </div>
+
+    <div class="field">
+      <label for="oz-extra-input">Доп. премия (отзывы, SMM, совмещение и т.п.), ₽</label>
+      <input type="number" id="oz-extra-input" step="500" placeholder="0">
+    </div>
+
+    <div class="field">
+      <label for="oz-official-advance-input">Официальный аванс, ₽</label>
+      <input type="number" id="oz-official-advance-input" step="100" value="5420">
+    </div>
+
+    <div class="field">
+      <label for="oz-official-salary-input">Официальная ЗП, ₽</label>
+      <input type="number" id="oz-official-salary-input" step="100" value="8314">
+    </div>
+
+    <div class="field">
+      <label for="oz-unofficial-advance-input">Неофициальный аванс, ₽</label>
+      <input type="number" id="oz-unofficial-advance-input" step="500" value="11000">
+    </div>
+
+    <div class="presets">
+      <p>Выплата ссуды</p>
+      <div class="field">
+        <label for="oz-loan-total-input">Общая сумма займа, ₽</label>
+        <input type="number" id="oz-loan-total-input" step="1000" value="350000">
+      </div>
+      <div class="off-split" style="margin-top:2px;">
+        <div class="item"><div class="label">Уже выплачено</div><div class="value" id="oz-loan-paid-value">0 ₽</div></div>
+        <div class="item"><div class="label">Остаток</div><div class="value" id="oz-loan-remaining-value">0 ₽</div></div>
+      </div>
+      <p class="tariff-note" style="margin-top:8px;">По файлу с января по июль 2026 уже удержано 35 000 ₽ (7 мес. × 5 000 ₽). Дальше по 5 000 ₽/мес списывается автоматически при сохранении расчёта, пока остаток не станет 0.</p>
+    </div>
+
+    <div class="presets">
+      <p>История расчётов</p>
+      <div id="oz-history-list"></div>
+      <button class="add-btn" id="oz-save-calc-btn" style="width:100%; margin-top:6px;">Сохранить расчёт за месяц</button>
+      <p class="tariff-note" style="margin-top:8px;">Сохраняется в этом браузере на этом компьютере.</p>
+    </div>
+
+    <div class="presets">
+      <button class="preset-btn" data-oz-preset="clear">Очистить и начать новый расчёт</button>
+    </div>
+  </aside>
+
+  <main>
+    <div class="summary-bar">
+      <div class="summary-figure">
+        <div class="label">К доплате в конце месяца</div>
+        <div class="value" id="oz-final-value">0 ₽</div>
+      </div>
+      <div class="summary-mini">
+        <div class="item"><div class="label">Оклад</div><div class="value" id="oz-mini-oklad">0 ₽</div></div>
+        <div class="item"><div class="label">Сумма бонусов</div><div class="value" id="oz-mini-bonus">0 ₽</div></div>
+        <div class="item"><div class="label">Доп. премия</div><div class="value" id="oz-mini-extra">0 ₽</div></div>
+        <div class="item"><div class="label">Начислено всего</div><div class="value" id="oz-mini-total">0 ₽</div></div>
+      </div>
+    </div>
+
+    <div class="summary-bar" style="margin-top:-8px;">
+      <div class="off-split">
+        <div class="item"><div class="label">Официально</div><div class="value" id="oz-official-value">0 ₽</div></div>
+        <div class="item"><div class="label">Неофициальный аванс</div><div class="value" id="oz-advance-value">0 ₽</div></div>
+        <div class="item"><div class="label">Погашение займа</div><div class="value" id="oz-loan-deduction-value">0 ₽</div></div>
+        <div class="item"><div class="label">Остаток к доплате</div><div class="value" id="oz-unofficial-value">0 ₽</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <table id="oz-rows-tbl">
+        <thead>
+          <tr>
+            <th class="col-name">Артикул</th>
+            <th class="col-num">Марж. прибыль, ₽</th>
+            <th class="col-num">Категория</th>
+            <th class="col-num">% плана</th>
+            <th class="col-num">% маржинальности</th>
+            <th class="col-num">Бонус за план</th>
+            <th class="col-num">Бонус за маржу</th>
+            <th class="col-num">Итого бонус</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="oz-rows-body"></tbody>
+      </table>
+      <div class="table-actions">
+        <button class="add-btn" id="oz-add-row">+ Добавить артикул</button>
+      </div>
+    </div>
+
+    <p class="foot-note">Категория: A &gt;100&nbsp;тыс.₽/мес (полная шкала), B 50&ndash;100&nbsp;тыс.₽ (полная шкала), C 30&ndash;50&nbsp;тыс.₽ (фиксированный бонус 2000 ₽ за маржу, план не оплачивается), ниже 30&nbsp;тыс.₽ &mdash; бонус 0. Можно переопределить категорию вручную, кликнув по значку.</p>
+  </main>
+</div>
+
+<div class="layout" id="tab-ym" style="display:none;">
+  <aside class="sidebar">
+    <h1>Расчёт ЗП</h1>
+    <p class="subtitle">Менеджер ЯМ &mdash; SEKAI / MELD</p>
+
+    <div class="field">
+      <label for="ym-period-month">Расчётный месяц</label>
+      <input type="month" id="ym-period-month" value="2026-09">
+    </div>
+
+    <div class="tariff-note">Оплата труда 2025 &mdash; оклад 25 000 ₽, категории A/B/C (действует с авг. 2025)</div>
+
+    <div class="field" style="margin-top:14px;">
+      <label for="ym-oklad-input">Оклад, ₽</label>
+      <input type="number" id="ym-oklad-input" step="500" value="25000">
+    </div>
+
+    <div class="field">
+      <label for="ym-extra-input">Доп. премия (инфографика и т.п.), ₽</label>
+      <input type="number" id="ym-extra-input" step="500" placeholder="0">
+    </div>
+
+    <div class="field">
+      <label for="ym-official-advance-input">Официальный аванс, ₽</label>
+      <input type="number" id="ym-official-advance-input" step="100" value="5421">
+    </div>
+
+    <div class="field">
+      <label for="ym-official-salary-input">Официальная ЗП, ₽</label>
+      <input type="number" id="ym-official-salary-input" step="100" value="8314">
+    </div>
+
+    <div class="field">
+      <label for="ym-advance-input">Неофициальный аванс, ₽</label>
+      <input type="number" id="ym-advance-input" step="500" value="10000">
+    </div>
+
+    <div class="presets">
+      <p>История расчётов</p>
+      <div id="ym-history-list"></div>
+      <button class="add-btn" id="ym-save-calc-btn" style="width:100%; margin-top:6px;">Сохранить расчёт за месяц</button>
+      <p class="tariff-note" style="margin-top:8px;">Сохраняется в этом браузере на этом компьютере.</p>
+    </div>
+
+    <div class="presets">
+      <button class="preset-btn" data-ym-preset="clear">Очистить и начать новый расчёт</button>
+    </div>
+  </aside>
+
+  <main>
+    <div class="summary-bar">
+      <div class="summary-figure">
+        <div class="label">К доплате в конце месяца</div>
+        <div class="value" id="ym-final-value">0 ₽</div>
+      </div>
+      <div class="summary-mini">
+        <div class="item"><div class="label">Оклад</div><div class="value" id="ym-mini-oklad">0 ₽</div></div>
+        <div class="item"><div class="label">Сумма бонусов</div><div class="value" id="ym-mini-bonus">0 ₽</div></div>
+        <div class="item"><div class="label">Доп. премия</div><div class="value" id="ym-mini-extra">0 ₽</div></div>
+        <div class="item"><div class="label">Начислено всего</div><div class="value" id="ym-mini-total">0 ₽</div></div>
+      </div>
+    </div>
+
+    <div class="summary-bar" style="margin-top:-8px;">
+      <div class="off-split">
+        <div class="item"><div class="label">Официально</div><div class="value" id="ym-official-value">0 ₽</div></div>
+        <div class="item"><div class="label">Неофициальный аванс</div><div class="value" id="ym-advance-value">0 ₽</div></div>
+        <div class="item"><div class="label">Остаток к доплате</div><div class="value" id="ym-unofficial-value">0 ₽</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <table id="ym-rows-tbl">
+        <thead>
+          <tr>
+            <th class="col-name">Артикул</th>
+            <th class="col-num">Марж. прибыль, ₽</th>
+            <th class="col-num">Категория</th>
+            <th class="col-num">% плана</th>
+            <th class="col-num">% маржинальности</th>
+            <th class="col-num">Бонус за план</th>
+            <th class="col-num">Бонус за маржу</th>
+            <th class="col-num">Итого бонус</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="ym-rows-body"></tbody>
+      </table>
+      <div class="table-actions">
+        <button class="add-btn" id="ym-add-row">+ Добавить артикул</button>
+      </div>
+    </div>
+
+    <p class="foot-note">Категория: A &gt;100&nbsp;тыс.₽/мес (полная шкала), B 50&ndash;100&nbsp;тыс.₽ (полная шкала), C 30&ndash;50&nbsp;тыс.₽ (фиксированный бонус 2000 ₽ за маржу, план не оплачивается), ниже 30&nbsp;тыс.₽ &mdash; бонус 0. Ссуды для менеджера ЯМ нет. Можно переопределить категорию вручную, кликнув по значку.</p>
+  </main>
+</div>
+
+<div class="layout" id="tab-rop" style="display:none;">
+  <aside class="sidebar">
+    <h1>Расчёт ЗП</h1>
+    <p class="subtitle">РОП &mdash; SEKAI / MELD</p>
+
+    <div class="field">
+      <label for="rop-period-month">Расчётный месяц</label>
+      <input type="month" id="rop-period-month" value="2026-09">
+    </div>
+
+    <div class="tariff-note">Оклад + премия 3% от валовой маржи по всем направлениям за месяц</div>
+
+    <div class="field" style="margin-top:14px;">
+      <label for="rop-oklad-input">Оклад, ₽</label>
+      <input type="number" id="rop-oklad-input" step="1000" value="80000">
+    </div>
+
+    <div class="field">
+      <label for="rop-advance-input">Аванс, ₽</label>
+      <input type="number" id="rop-advance-input" step="1000" value="40000">
+    </div>
+
+    <div class="presets">
+      <p>История расчётов</p>
+      <div id="rop-history-list"></div>
+      <button class="add-btn" id="rop-save-calc-btn" style="width:100%; margin-top:6px;">Сохранить расчёт за месяц</button>
+      <p class="tariff-note" style="margin-top:8px;">Сохраняется в этом браузере на этом компьютере.</p>
+    </div>
+
+    <div class="presets">
+      <button class="preset-btn" data-rop-preset="clear">Очистить и начать новый расчёт</button>
+    </div>
+  </aside>
+
+  <main>
+    <div class="summary-bar">
+      <div class="summary-figure">
+        <div class="label">К доплате за месяц</div>
+        <div class="value" id="rop-final-value">0 ₽</div>
+      </div>
+      <div class="summary-mini">
+        <div class="item"><div class="label">Оклад</div><div class="value" id="rop-mini-oklad">0 ₽</div></div>
+        <div class="item"><div class="label">Аванс</div><div class="value" id="rop-mini-advance">0 ₽</div></div>
+        <div class="item"><div class="label">Валовая маржа, всего</div><div class="value" id="rop-mini-margin">0 ₽</div></div>
+        <div class="item"><div class="label">Премия (3%)</div><div class="value" id="rop-mini-premium">0 ₽</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <table id="rop-rows-tbl">
+        <thead>
+          <tr>
+            <th class="col-name">Направление</th>
+            <th class="col-num">Валовая маржа за месяц, ₽</th>
+          </tr>
+        </thead>
+        <tbody id="rop-rows-body"></tbody>
+      </table>
+    </div>
+
+    <p class="foot-note">Данные берутся с листа «ОПиУ &ndash; месяцы» (строка «Валовая маржа») по каждому направлению. С этого месяца в расчёт также включается кабинет ВБ ИП Тарасов &mdash; и его же с этого момента нужно учитывать в расчёте зарплаты менеджера ВБ.</p>
+  </main>
+</div>
+
+<div class="layout" id="tab-as" style="display:none;">
+  <aside class="sidebar">
+    <h1>Расчёт ЗП</h1>
+    <p class="subtitle">Ассистент</p>
+
+    <div class="field">
+      <label for="as-period-month">Расчётный месяц</label>
+      <input type="month" id="as-period-month" value="2026-09">
+    </div>
+
+    <div class="tariff-note">Фикс неофициально: аванс 11 000 ₽ + ЗП 10 000 ₽. Сверху &mdash; официальная часть и доплаты.</div>
+
+    <div class="field" style="margin-top:14px;">
+      <label for="as-official-advance-input">Официальный аванс, ₽</label>
+      <input type="number" id="as-official-advance-input" step="100" value="5421">
+    </div>
+
+    <div class="field">
+      <label for="as-official-salary-input">Официальная ЗП, ₽</label>
+      <input type="number" id="as-official-salary-input" step="100" value="8314">
+    </div>
+
+    <div class="field">
+      <label for="as-bloggers-input">Доплата за блогеров, ₽</label>
+      <input type="number" id="as-bloggers-input" step="500" placeholder="0">
+    </div>
+
+    <div class="field">
+      <label for="as-purchase-volume-input">Объём закупки за месяц, ₽</label>
+      <input type="number" id="as-purchase-volume-input" step="1000" placeholder="0">
+    </div>
+
+    <div class="field">
+      <label for="as-schools-input">Доплата за поиск товара для школ, ₽</label>
+      <input type="number" id="as-schools-input" step="500" placeholder="0">
+    </div>
+
+    <div class="presets">
+      <p>История расчётов</p>
+      <div id="as-history-list"></div>
+      <button class="add-btn" id="as-save-calc-btn" style="width:100%; margin-top:6px;">Сохранить расчёт за месяц</button>
+      <p class="tariff-note" style="margin-top:8px;">Сохраняется в этом браузере на этом компьютере.</p>
+    </div>
+  </aside>
+
+  <main>
+    <div class="summary-bar">
+      <div class="summary-figure">
+        <div class="label">ЗП неофициально</div>
+        <div class="value" id="as-salneof-value">0 ₽</div>
+      </div>
+      <div class="summary-mini">
+        <div class="item"><div class="label">Аванс всего</div><div class="value" id="as-mini-advance">0 ₽</div></div>
+        <div class="item"><div class="label">Доплата за закупки (1%)</div><div class="value" id="as-mini-purchase">0 ₽</div></div>
+        <div class="item"><div class="label">ЗП официально</div><div class="value" id="as-mini-salof">0 ₽</div></div>
+        <div class="item"><div class="label">Итого начислено</div><div class="value" id="as-mini-total">0 ₽</div></div>
+      </div>
+    </div>
+
+    <p class="foot-note">Аванс = 11 000 ₽ (неофициально) + официальный аванс. ЗП неофициально = 10 000 ₽ + доплата за блогеров + 1% от объёма закупки + доплата за поиск товара для школ. Официальные суммы вводятся вручную.</p>
+  </main>
+</div>
+
+<div class="layout ved-layout" id="tab-ved" style="display:none;">
+  <div class="card" style="padding: 18px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:14px;">
+      <div>
+        <h1 style="margin-bottom:2px;">Зарплатная ведомость</h1>
+        <p class="subtitle" style="margin:0;">SEKAI / MELD &mdash; сводно по всем сотрудникам</p>
+      </div>
+      <div class="field" style="margin:0; width:180px;">
+        <label for="ved-period-month">Расчётный месяц</label>
+        <input type="month" id="ved-period-month" value="2026-09">
+      </div>
+    </div>
+
+    <table id="ved-rows-tbl">
+      <thead>
+        <tr>
+          <th class="col-name col-wide">Сотрудник</th>
+          <th class="col-num">Аванс оф., ₽</th>
+          <th class="col-num">Аванс неоф., ₽</th>
+          <th class="col-num">ЗП оф., ₽</th>
+          <th class="col-num">ЗП неоф., ₽</th>
+          <th class="col-num">Банк</th>
+          <th class="col-num">Способ оплаты</th>
+          <th class="col-num">Премия</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="ved-rows-body"></tbody>
+      <tfoot>
+        <tr class="ved-total-row">
+          <td>Итого</td>
+          <td id="ved-total-adv-of">0 ₽</td>
+          <td id="ved-total-adv-neof">0 ₽</td>
+          <td id="ved-total-sal-of">0 ₽</td>
+          <td id="ved-total-sal-neof">0 ₽</td>
+          <td colspan="4"></td>
+        </tr>
+      </tfoot>
+    </table>
+    <div class="table-actions">
+      <button class="add-btn" id="ved-add-row">+ Добавить сотрудника</button>
+    </div>
+
+    <p class="foot-note">Строки со значком &laquo;авто&raquo; подтягивают неофициальные суммы из соответствующей вкладки калькулятора за выбранный месяц (нужно, чтобы расчёт там был сохранён); официальная часть для них &mdash; из поля &laquo;официальная часть&raquo; той вкладки (если есть) или вручную. Остальные сотрудники &mdash; полностью ручной ввод. Кнопка &laquo;&check;&raquo; рядом с суммой отмечает её как выплаченную (заливка зелёным).</p>
+
+    <div class="presets" style="margin-top:18px;">
+      <p>История ведомостей</p>
+      <div id="ved-history-list"></div>
+      <button class="add-btn" id="ved-save-calc-btn" style="width:100%; margin-top:6px;">Сохранить ведомость за месяц</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---- Автозаполнение сентября 2026 (добавляется один раз, если за этот месяц ещё нет записи) ----
+</script>
+<script>
+// ---------- Бэкап: экспорт/импорт всех данных калькулятора одним файлом ----------
+
+const BACKUP_KEYS = [
+  'wbSalaryHistory_v1',
+  'ozonSalaryHistory_v1',
+  'ozonLoanState_v1',
+  'ymSalaryHistory_v1',
+  'ropSalaryHistory_v1',
+  'asSalaryHistory_v1',
+  'vedSalaryHistory_v1',
+  'upMappings_v1',
+];
+
+function backupExport() {
+  const data = {};
+  BACKUP_KEYS.forEach(key => {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      try { data[key] = JSON.parse(raw); } catch (e) {}
+    }
+  });
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const today = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = 'salary-calc-backup-' + today + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  const status = document.getElementById('backup-status');
+  status.textContent = 'Файл сохранён ✓';
+  setTimeout(() => { status.textContent = ''; }, 2500);
+}
+
+function backupImport(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const status = document.getElementById('backup-status');
+    try {
+      const data = JSON.parse(reader.result);
+      BACKUP_KEYS.forEach(key => {
+        if (data[key] !== undefined) {
+          localStorage.setItem(key, JSON.stringify(data[key]));
+        }
+      });
+      status.textContent = 'Импортировано, перезагружаю…';
+      setTimeout(() => location.reload(), 800);
+    } catch (e) {
+      status.textContent = 'Не удалось прочитать файл';
+      setTimeout(() => { status.textContent = ''; }, 3000);
+    }
+  };
+  reader.readAsText(file);
+}
+
+document.getElementById('backup-export-btn').addEventListener('click', backupExport);
+document.getElementById('backup-import-btn').addEventListener('click', () => {
+  document.getElementById('backup-import-file').click();
+});
+document.getElementById('backup-import-file').addEventListener('change', (e) => {
+  if (e.target.files && e.target.files[0]) {
+    backupImport(e.target.files[0]);
+  }
+});
+
+// ---------- Тарифные сетки (реконструированы из истории расчётов) ----------
+
+function bracket(value, table) {
+  let bonus = 0;
+  for (const b of table) {
+    if (b.min !== undefined && value >= b.min) bonus = b.bonus;
+  }
+  return bonus;
+}
+
+// ДРР — обратная логика (чем меньше %, тем больше бонус), считается отдельно
+function bracketInverse(value, table) {
+  for (const b of table) {
+    if (b.max !== undefined && value <= b.max) return b.bonus;
+  }
+  return 0;
+}
+
+const TARIFFS = {
+  '2024': {
+    label: '2024 — оклад 15 000, план + маржа + ДРР',
+    oklad: 15000,
+    mode: 'flat',
+    hasDRR: true,
+    planTable: [
+      {max: 74.999, bonus: 0},
+      {min: 75, max: 85, bonus: 3000},
+      {min: 86, max: 95, bonus: 5000},
+      {min: 96, max: 110, bonus: 7000},
+      {min: 111, max: 135, bonus: 10000},
+      {min: 135.001, bonus: 15000},
+    ],
+    marginTable: [
+      {max: 24.999, bonus: 0},
+      {min: 25, max: 30, bonus: 2000},
+      {min: 31, max: 35, bonus: 5000},
+      {min: 36, bonus: 7000},
+    ],
+    drrTable: [
+      {max: 5, bonus: 4000},
+      {min: 5.001, max: 10, bonus: 3000},
+      {min: 10.001, max: 15, bonus: 1000},
+      {min: 15.001, bonus: 0},
+    ],
+  },
+  '2025h1': {
+    label: '2025 (янв&ndash;июл) — оклад 17 000, единая шкала (без категорий, без ДРР)',
+    oklad: 17000,
+    mode: 'flat',
+    hasDRR: false,
+    planTable: [
+      {max: 54.999, bonus: 0},
+      {min: 55, max: 74, bonus: 1500},
+      {min: 75, max: 85, bonus: 3500},
+      {min: 86, max: 95, bonus: 5500},
+      {min: 96, max: 110, bonus: 8000},
+      {min: 110.001, bonus: 12000},
+    ],
+    marginTable: [
+      {max: 21.999, bonus: 0},
+      {min: 22, max: 24, bonus: 2000},
+      {min: 25, max: 30, bonus: 5000},
+      {min: 31, max: 35, bonus: 10000},
+      {min: 35.001, bonus: 13000},
+    ],
+  },
+  '2025h2': {
+    label: '2025 (авг&ndash;сен) — оклад 17 000, категории A/B/C',
+    oklad: 17000,
+    mode: 'categorized',
+    hasDRR: false,
+    catA: {
+      planTable: [
+        {max: 54.999, bonus: 0},
+        {min: 55, max: 74, bonus: 1500},
+        {min: 75, max: 85, bonus: 3500},
+        {min: 86, max: 95, bonus: 5500},
+        {min: 96, max: 110, bonus: 8000},
+        {min: 110.001, bonus: 12000},
+      ],
+      marginTable: [
+        {max: 21.999, bonus: 0},
+        {min: 22, max: 24, bonus: 2000},
+        {min: 25, max: 30, bonus: 5000},
+        {min: 31, max: 35, bonus: 10000},
+        {min: 35.001, bonus: 13000},
+      ],
+    },
+    catB: {
+      planTable: [
+        {max: 54.999, bonus: 0},
+        {min: 55, max: 74, bonus: 500},
+        {min: 75, max: 85, bonus: 1500},
+        {min: 86, max: 95, bonus: 3000},
+        {min: 96, max: 110, bonus: 4500},
+        {min: 110.001, bonus: 6500},
+      ],
+      marginTable: [
+        {max: 21.999, bonus: 0},
+        {min: 22, max: 24, bonus: 1000},
+        {min: 25, max: 30, bonus: 2500},
+        {min: 31, max: 35, bonus: 4000},
+        {min: 35.001, bonus: 5500},
+      ],
+    },
+  },
+  'current': {
+    label: 'Текущая (с окт. 2025) — оклад 40 000, категории A/B/C',
+    oklad: 40000,
+    mode: 'categorized',
+    hasDRR: false,
+    catA: {
+      planTable: [
+        {max: 54.999, bonus: 0},
+        {min: 55, max: 74, bonus: 1000},
+        {min: 75, max: 85, bonus: 2500},
+        {min: 86, max: 95, bonus: 3500},
+        {min: 96, max: 110, bonus: 5000},
+        {min: 110.001, bonus: 6000},
+      ],
+      marginTable: [
+        {max: 21.999, bonus: 0},
+        {min: 22, max: 24, bonus: 1000},
+        {min: 25, max: 30, bonus: 2500},
+        {min: 31, max: 35, bonus: 6000},
+        {min: 35.001, bonus: 8000},
+      ],
+    },
+    catB: {
+      planTable: [
+        {max: 74.999, bonus: 0},
+        {min: 75, max: 85, bonus: 1000},
+        {min: 86, max: 95, bonus: 1500},
+        {min: 96, max: 110, bonus: 3000},
+        {min: 110.001, bonus: 4000},
+      ],
+      marginTable: [
+        {max: 21.999, bonus: 0},
+        {min: 22, max: 24, bonus: 500},
+        {min: 25, max: 30, bonus: 1500},
+        {min: 31, max: 35, bonus: 3000},
+        {min: 35.001, bonus: 5000},
+      ],
+    },
+  },
+};
+
+function tariffForMonth(ym) {
+  // ym: "YYYY-MM"
+  if (ym < '2025-01') return '2024';
+  if (ym < '2025-08') return '2025h1';
+  if (ym < '2025-10') return '2025h2';
+  return 'current';
+}
+
+function autoCategory(profit) {
+  if (profit > 100000) return 'A';
+  if (profit >= 50000) return 'B';
+  return 'C';
+}
+
+// ---------- Состояние ----------
+
+let rows = [];
+let rowId = 0;
+
+function newRow(data) {
+  rowId += 1;
+  return Object.assign({
+    id: rowId,
+    name: '',
+    profit: '',
+    plan: '',
+    margin: '',
+    drr: '',
+    catOverride: null, // null = авто
+  }, data || {});
+}
+
+function addRow(data) {
+  rows.push(newRow(data));
+  render();
+}
+
+// ---------- Пресеты (валидация на реальных прошлых месяцах) ----------
+
+const PRESETS = {};
+
+// ---------- Рендер ----------
+
+const tariffSelect = document.getElementById('tariff-select');
+const monthInput = document.getElementById('period-month');
+const okladInput = document.getElementById('oklad-input');
+const tariffNote = document.getElementById('tariff-note');
+const rowsBody = document.getElementById('rows-body');
+const rowsTbl = document.getElementById('rows-tbl');
+
+Object.keys(TARIFFS).forEach(key => {
+  const opt = document.createElement('option');
+  opt.value = key;
+  opt.innerHTML = TARIFFS[key].label;
+  tariffSelect.appendChild(opt);
+});
+
+let manualTariff = false;
+let manualOklad = false;
+
+function currentTariffKey() {
+  return manualTariff ? tariffSelect.value : tariffForMonth(monthInput.value);
+}
+
+function fmt(n) {
+  return Math.round(n).toLocaleString('ru-RU') + ' ₽';
+}
+
+function computeRow(row, tariffKey) {
+  const t = TARIFFS[tariffKey];
+  const profit = parseFloat(row.profit) || 0;
+  const plan = parseFloat(row.plan);
+  const margin = parseFloat(row.margin);
+  const drr = parseFloat(row.drr);
+  let cat = null;
+  let planBonus = 0, marginBonus = 0, drrBonus = 0;
+
+  if (t.mode === 'flat') {
+    planBonus = isNaN(plan) ? 0 : bracket(plan, t.planTable);
+    marginBonus = isNaN(margin) ? 0 : bracket(margin, t.marginTable);
+    if (t.hasDRR) {
+      drrBonus = isNaN(drr) ? 0 : bracketInverse(drr, t.drrTable);
+    }
+  } else {
+    cat = row.catOverride || autoCategory(profit);
+    if (cat === 'A') {
+      planBonus = isNaN(plan) ? 0 : bracket(plan, t.catA.planTable);
+      marginBonus = isNaN(margin) ? 0 : bracket(margin, t.catA.marginTable);
+    } else if (cat === 'B') {
+      planBonus = isNaN(plan) ? 0 : bracket(plan, t.catB.planTable);
+      marginBonus = isNaN(margin) ? 0 : bracket(margin, t.catB.marginTable);
+    } else {
+      planBonus = 0; marginBonus = 0;
+    }
+  }
+  return {cat, planBonus, marginBonus, drrBonus, total: planBonus + marginBonus + drrBonus};
+}
+
+function render() {
+  const tariffKey = currentTariffKey();
+  const t = TARIFFS[tariffKey];
+
+  if (!manualTariff) tariffSelect.value = tariffKey;
+  if (!manualOklad) okladInput.value = t.oklad;
+
+  tariffNote.innerHTML = t.mode === 'flat'
+    ? 'Единая шкала для всех артикулов, категории не применяются.'
+    : 'Бонус зависит от категории артикула. Категория C &mdash; бонус всегда 0, независимо от показателей.';
+
+  rowsTbl.classList.toggle('show-drr', !!t.hasDRR);
+
+  rowsBody.innerHTML = '';
+  let bonusSum = 0;
+
+  rows.forEach(row => {
+    const r = computeRow(row, tariffKey);
+    bonusSum += r.total;
+
+    const tr = document.createElement('tr');
+
+    const tdName = document.createElement('td');
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text'; nameInput.value = row.name; nameInput.placeholder = 'Например: Душ зелёный';
+    nameInput.addEventListener('input', e => { row.name = e.target.value; });
+    tdName.appendChild(nameInput);
+    tr.appendChild(tdName);
+
+    const tdProfit = document.createElement('td');
+    const profitInput = document.createElement('input');
+    profitInput.type = 'number'; profitInput.value = row.profit; profitInput.placeholder = '0';
+    profitInput.addEventListener('input', e => { row.profit = e.target.value; render(); });
+    tdProfit.appendChild(profitInput);
+    tr.appendChild(tdProfit);
+
+    const tdCat = document.createElement('td');
+    if (t.mode === 'categorized') {
+      const badge = document.createElement('span');
+      badge.className = 'cat-badge cat-' + r.cat;
+      badge.textContent = r.cat + (row.catOverride ? ' •' : '');
+      tdCat.appendChild(badge);
+      const overrideLink = document.createElement('span');
+      overrideLink.className = 'cat-override';
+      overrideLink.textContent = row.catOverride ? 'сбросить' : 'изменить';
+      overrideLink.addEventListener('click', () => {
+        if (row.catOverride) {
+          row.catOverride = null;
+        } else {
+          const options = ['A', 'B', 'C'];
+          const next = options[(options.indexOf(r.cat) + 1) % 3];
+          row.catOverride = next;
+        }
+        render();
+      });
+      tdCat.appendChild(overrideLink);
+    } else {
+      tdCat.textContent = '—';
+    }
+    tr.appendChild(tdCat);
+
+    const tdPlan = document.createElement('td');
+    const planInput = document.createElement('input');
+    planInput.type = 'number'; planInput.value = row.plan; planInput.placeholder = '%';
+    planInput.addEventListener('input', e => { row.plan = e.target.value; render(); });
+    tdPlan.appendChild(planInput);
+    tr.appendChild(tdPlan);
+
+    const tdMargin = document.createElement('td');
+    const marginInput = document.createElement('input');
+    marginInput.type = 'number'; marginInput.value = row.margin; marginInput.placeholder = '%';
+    marginInput.addEventListener('input', e => { row.margin = e.target.value; render(); });
+    tdMargin.appendChild(marginInput);
+    tr.appendChild(tdMargin);
+
+    const tdDrr = document.createElement('td');
+    tdDrr.className = 'drr-col';
+    const drrInput = document.createElement('input');
+    drrInput.type = 'number'; drrInput.value = row.drr; drrInput.placeholder = '%';
+    drrInput.addEventListener('input', e => { row.drr = e.target.value; render(); });
+    tdDrr.appendChild(drrInput);
+    tr.appendChild(tdDrr);
+
+    const tdPlanBonus = document.createElement('td'); tdPlanBonus.textContent = fmt(r.planBonus);
+    tr.appendChild(tdPlanBonus);
+    const tdMarginBonus = document.createElement('td'); tdMarginBonus.textContent = fmt(r.marginBonus);
+    tr.appendChild(tdMarginBonus);
+    const tdDrrBonus = document.createElement('td'); tdDrrBonus.className = 'drr-col'; tdDrrBonus.textContent = fmt(r.drrBonus);
+    tr.appendChild(tdDrrBonus);
+    const tdTotal = document.createElement('td'); tdTotal.className = 'bonus-total'; tdTotal.textContent = fmt(r.total);
+    tr.appendChild(tdTotal);
+
+    const tdRemove = document.createElement('td');
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'row-remove'; removeBtn.innerHTML = '✕';
+    removeBtn.addEventListener('click', () => {
+      rows = rows.filter(x => x.id !== row.id);
+      render();
+    });
+    tdRemove.appendChild(removeBtn);
+    tr.appendChild(tdRemove);
+
+    rowsBody.appendChild(tr);
+  });
+
+  const oklad = parseFloat(okladInput.value) || 0;
+  const advance = oklad / 2;
+  const final = advance + bonusSum;
+  const totalAccrued = oklad + bonusSum;
+
+  document.getElementById('final-value').textContent = fmt(final);
+  document.getElementById('mini-oklad').textContent = fmt(oklad);
+  document.getElementById('mini-advance').textContent = fmt(advance);
+  document.getElementById('mini-bonus').textContent = fmt(bonusSum);
+  document.getElementById('mini-total').textContent = fmt(totalAccrued);
+}
+
+// ---------- Обработчики ----------
+
+monthInput.addEventListener('input', () => { manualTariff = false; render(); });
+tariffSelect.addEventListener('change', () => { manualTariff = true; render(); });
+okladInput.addEventListener('input', () => { manualOklad = true; render(); });
+
+document.getElementById('add-row').addEventListener('click', () => addRow());
+
+document.querySelectorAll('.preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const key = btn.dataset.preset;
+    if (key === 'clear') {
+      rows = [];
+      manualTariff = false; manualOklad = false;
+      monthInput.value = '2026-09';
+      render();
+      return;
+    }
+    const preset = PRESETS[key];
+    monthInput.value = preset.month;
+    manualTariff = false; manualOklad = false;
+    rows = preset.rows.map(r => newRow(r));
+    render();
+  });
+});
+
+// ---------- История расчётов (сохраняется в браузере) ----------
+
+const HISTORY_KEY = 'wbSalaryHistory_v1';
+
+function loadHistoryRaw() {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveHistoryRaw(hist) {
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(hist));
+  } catch (e) {
+    // хранилище недоступно (приватный режим и т.п.) — тихо игнорируем
+  }
+}
+
+function seedHistoryIfEmpty() { return; }
+
+function monthLabel(ym) {
+  const names = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+  const [y, m] = ym.split('-');
+  return names[parseInt(m, 10) - 1] + '.' + y.slice(2);
+}
+
+function computeMonthTotal(ym, entry) {
+  const tariffKey = tariffForMonth(ym);
+  const t = TARIFFS[tariffKey];
+  const oklad = entry.manualOklad ? entry.oklad : t.oklad;
+  let bonusSum = 0;
+  entry.rows.forEach(row => {
+    bonusSum += computeRow(row, tariffKey).total;
+  });
+  return oklad / 2 + bonusSum;
+}
+
+function renderHistory() {
+  const hist = loadHistoryRaw();
+  const container = document.getElementById('history-list');
+  container.innerHTML = '';
+  const months = Object.keys(hist).sort().reverse();
+  if (months.length === 0) {
+    const p = document.createElement('p');
+    p.className = 'history-empty';
+    p.textContent = 'Пока нет сохранённых расчётов.';
+    container.appendChild(p);
+    return;
+  }
+  months.forEach(ym => {
+    const entry = hist[ym];
+    const total = computeMonthTotal(ym, entry);
+    const item = document.createElement('div');
+    item.className = 'history-item';
+
+    const info = document.createElement('div');
+    info.className = 'hist-info';
+    const monthSpan = document.createElement('span');
+    monthSpan.className = 'hist-month';
+    monthSpan.textContent = monthLabel(ym);
+    const totalSpan = document.createElement('span');
+    totalSpan.className = 'hist-total';
+    totalSpan.textContent = fmt(total);
+    info.appendChild(monthSpan);
+    info.appendChild(totalSpan);
+    item.appendChild(info);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'hist-remove';
+    removeBtn.innerHTML = '✕';
+    removeBtn.title = 'Удалить сохранённый расчёт';
+    removeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const h = loadHistoryRaw();
+      delete h[ym];
+      saveHistoryRaw(h);
+      renderHistory();
+    });
+    item.appendChild(removeBtn);
+
+    item.addEventListener('click', () => {
+      monthInput.value = ym;
+      manualTariff = false;
+      manualOklad = entry.manualOklad || false;
+      if (manualOklad) okladInput.value = entry.oklad;
+      rows = entry.rows.map(r => newRow(r));
+      render();
+    });
+
+    container.appendChild(item);
+  });
+}
+
+document.getElementById('save-calc-btn').addEventListener('click', () => {
+  const ym = monthInput.value;
+  const hist = loadHistoryRaw();
+  hist[ym] = {
+    oklad: parseFloat(okladInput.value) || 0,
+    manualOklad: manualOklad,
+    rows: rows.map(r => ({name: r.name, profit: r.profit, plan: r.plan, margin: r.margin, drr: r.drr, catOverride: r.catOverride})),
+  };
+  saveHistoryRaw(hist);
+  renderHistory();
+  const btn = document.getElementById('save-calc-btn');
+  const original = btn.textContent;
+  btn.textContent = 'Сохранено ✓';
+  setTimeout(() => { btn.textContent = original; }, 1500);
+});
+
+// ---------- Инициализация ----------
+
+seedHistoryIfEmpty();
+renderHistory();
+
+const initialHist = loadHistoryRaw();
+const initialMonths = Object.keys(initialHist).sort();
+if (initialMonths.length > 0) {
+  const latestYm = initialMonths[initialMonths.length - 1];
+  const entry = initialHist[latestYm];
+  monthInput.value = latestYm;
+  manualOklad = entry.manualOklad || false;
+  if (manualOklad) okladInput.value = entry.oklad;
+  rows = entry.rows.map(r => newRow(r));
+} else {
+  addRow({name: 'Артикул 1'});
+}
+render();
+
+// ---------- Переключение вкладок ----------
+
+const TAB_IDS = ['up', 'wb', 'oz', 'ym', 'rop', 'as', 'ved'];
+document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn[data-tab]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    TAB_IDS.forEach(id => {
+      const el = document.getElementById('tab-' + id);
+      if (el) el.style.display = btn.dataset.tab === id ? 'grid' : 'none';
+    });
+  });
+});
+
+// ---------- ОЗОН: тарифная сетка (KPI 2025, действует с окт. 2025) ----------
+
+const OZ_TARIFF = {
+  oklad: 25000,
+  catA: {
+    planTable: [
+      {min: 75, bonus: 3000},
+      {min: 86, bonus: 5000},
+      {min: 96, bonus: 7000},
+    ],
+    marginTable: [
+      {min: 15, bonus: 4000},
+      {min: 20, bonus: 6500},
+      {min: 25.001, bonus: 12000},
+    ],
+  },
+  catB: {
+    planTable: [
+      {min: 75, bonus: 1500},
+      {min: 86, bonus: 3000},
+      {min: 96, bonus: 5000},
+    ],
+    marginTable: [
+      {min: 15, bonus: 1500},
+      {min: 20, bonus: 3000},
+      {min: 25.001, bonus: 5000},
+    ],
+  },
+};
+
+function ozAutoCategory(profit) {
+  if (profit > 100000) return 'A';
+  if (profit >= 50000) return 'B';
+  if (profit >= 30000) return 'C';
+  return '0';
+}
+
+function ozComputeRow(row) {
+  const profit = parseFloat(row.profit) || 0;
+  const plan = parseFloat(row.plan);
+  const margin = parseFloat(row.margin);
+  const cat = row.catOverride || ozAutoCategory(profit);
+  let planBonus = 0, marginBonus = 0;
+  if (cat === 'A') {
+    planBonus = isNaN(plan) ? 0 : bracket(plan, OZ_TARIFF.catA.planTable);
+    marginBonus = isNaN(margin) ? 0 : bracket(margin, OZ_TARIFF.catA.marginTable);
+  } else if (cat === 'B') {
+    planBonus = isNaN(plan) ? 0 : bracket(plan, OZ_TARIFF.catB.planTable);
+    marginBonus = isNaN(margin) ? 0 : bracket(margin, OZ_TARIFF.catB.marginTable);
+  } else if (cat === 'C') {
+    planBonus = 0; marginBonus = 2000; // категория C — фиксированный бонус за маржу, план не оплачивается
+  } else {
+    planBonus = 0; marginBonus = 0;
+  }
+  return {cat, planBonus, marginBonus, total: planBonus + marginBonus};
+}
+
+let ozRows = [];
+let ozRowId = 0;
+
+function ozNewRow(data) {
+  ozRowId += 1;
+  return Object.assign({id: ozRowId, name: '', profit: '', plan: '', margin: '', catOverride: null}, data || {});
+}
+
+function ozAddRow(data) {
+  ozRows.push(ozNewRow(data));
+  ozRender();
+}
+
+const ozMonthInput = document.getElementById('oz-period-month');
+const ozOkladInput = document.getElementById('oz-oklad-input');
+const ozExtraInput = document.getElementById('oz-extra-input');
+const ozOfficialAdvanceInput = document.getElementById('oz-official-advance-input');
+const ozOfficialSalaryInput = document.getElementById('oz-official-salary-input');
+const ozAdvanceInput = document.getElementById('oz-unofficial-advance-input');
+const ozLoanTotalInput = document.getElementById('oz-loan-total-input');
+const ozRowsBody = document.getElementById('oz-rows-body');
+
+// ---------- ОЗОН: заём (общий счётчик, не привязан к конкретному месяцу) ----------
+
+const OZ_LOAN_KEY = 'ozonLoanState_v1';
+
+function ozLoadLoanState() {
+  try {
+    const raw = localStorage.getItem(OZ_LOAN_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  // по умолчанию: уже выплачено 35 000 ₽ (январь–июль 2026, по данным файла)
+  return {total: 350000, paid: 35000, paidMonths: []};
+}
+
+function ozSaveLoanState(state) {
+  try { localStorage.setItem(OZ_LOAN_KEY, JSON.stringify(state)); } catch (e) {}
+}
+
+function ozLoanDeductionForCurrentView() {
+  const state = ozLoadLoanState();
+  const total = parseFloat(ozLoanTotalInput.value) || state.total;
+  const remaining = total - state.paid;
+  return Math.max(0, Math.min(5000, remaining));
+}
+
+function ozRender() {
+  ozRowsBody.innerHTML = '';
+  let bonusSum = 0;
+
+  ozRows.forEach(row => {
+    const r = ozComputeRow(row);
+    bonusSum += r.total;
+
+    const tr = document.createElement('tr');
+
+    const tdName = document.createElement('td');
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text'; nameInput.value = row.name; nameInput.placeholder = 'Например: Души';
+    nameInput.addEventListener('input', e => { row.name = e.target.value; });
+    tdName.appendChild(nameInput);
+    tr.appendChild(tdName);
+
+    const tdProfit = document.createElement('td');
+    const profitInput = document.createElement('input');
+    profitInput.type = 'number'; profitInput.value = row.profit; profitInput.placeholder = '0';
+    profitInput.addEventListener('input', e => { row.profit = e.target.value; ozRender(); });
+    tdProfit.appendChild(profitInput);
+    tr.appendChild(tdProfit);
+
+    const tdCat = document.createElement('td');
+    const badge = document.createElement('span');
+    badge.className = 'cat-badge cat-' + (r.cat === '0' ? 'C' : r.cat);
+    badge.style.opacity = r.cat === '0' ? '0.55' : '1';
+    badge.textContent = r.cat + (row.catOverride ? ' •' : '');
+    tdCat.appendChild(badge);
+    const overrideLink = document.createElement('span');
+    overrideLink.className = 'cat-override';
+    overrideLink.textContent = row.catOverride ? 'сбросить' : 'изменить';
+    overrideLink.addEventListener('click', () => {
+      if (row.catOverride) {
+        row.catOverride = null;
+      } else {
+        const options = ['A', 'B', 'C', '0'];
+        const next = options[(options.indexOf(r.cat) + 1) % 4];
+        row.catOverride = next;
+      }
+      ozRender();
+    });
+    tdCat.appendChild(overrideLink);
+    tr.appendChild(tdCat);
+
+    const tdPlan = document.createElement('td');
+    const planInput = document.createElement('input');
+    planInput.type = 'number'; planInput.value = row.plan; planInput.placeholder = '%';
+    planInput.addEventListener('input', e => { row.plan = e.target.value; ozRender(); });
+    tdPlan.appendChild(planInput);
+    tr.appendChild(tdPlan);
+
+    const tdMargin = document.createElement('td');
+    const marginInput = document.createElement('input');
+    marginInput.type = 'number'; marginInput.value = row.margin; marginInput.placeholder = '%';
+    marginInput.addEventListener('input', e => { row.margin = e.target.value; ozRender(); });
+    tdMargin.appendChild(marginInput);
+    tr.appendChild(tdMargin);
+
+    const tdPlanBonus = document.createElement('td'); tdPlanBonus.textContent = fmt(r.planBonus);
+    tr.appendChild(tdPlanBonus);
+    const tdMarginBonus = document.createElement('td'); tdMarginBonus.textContent = fmt(r.marginBonus);
+    tr.appendChild(tdMarginBonus);
+    const tdTotal = document.createElement('td'); tdTotal.className = 'bonus-total'; tdTotal.textContent = fmt(r.total);
+    tr.appendChild(tdTotal);
+
+    const tdRemove = document.createElement('td');
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'row-remove'; removeBtn.innerHTML = '✕';
+    removeBtn.addEventListener('click', () => {
+      ozRows = ozRows.filter(x => x.id !== row.id);
+      ozRender();
+    });
+    tdRemove.appendChild(removeBtn);
+    tr.appendChild(tdRemove);
+
+    ozRowsBody.appendChild(tr);
+  });
+
+  const oklad = parseFloat(ozOkladInput.value) || 0;
+  const extra = parseFloat(ozExtraInput.value) || 0;
+  const officialAdvance = parseFloat(ozOfficialAdvanceInput.value) || 0;
+  const officialSalary = parseFloat(ozOfficialSalaryInput.value) || 0;
+  const unofficialAdvance = parseFloat(ozAdvanceInput.value) || 0;
+  const loanState = ozLoadLoanState();
+  const loanTotal = parseFloat(ozLoanTotalInput.value) || loanState.total;
+  const loanRemaining = Math.max(0, loanTotal - loanState.paid);
+  const loanDeduction = Math.min(5000, loanRemaining);
+  const totalAccrued = oklad + bonusSum + extra;
+  const remainder = totalAccrued - officialAdvance - officialSalary - unofficialAdvance - loanDeduction;
+
+  document.getElementById('oz-final-value').textContent = fmt(remainder);
+  document.getElementById('oz-mini-oklad').textContent = fmt(oklad);
+  document.getElementById('oz-mini-bonus').textContent = fmt(bonusSum);
+  document.getElementById('oz-mini-extra').textContent = fmt(extra);
+  document.getElementById('oz-mini-total').textContent = fmt(totalAccrued);
+  document.getElementById('oz-official-value').textContent = fmt(officialAdvance + officialSalary);
+  document.getElementById('oz-advance-value').textContent = fmt(unofficialAdvance);
+  document.getElementById('oz-loan-deduction-value').textContent = fmt(loanDeduction);
+  document.getElementById('oz-unofficial-value').textContent = fmt(remainder);
+  document.getElementById('oz-loan-paid-value').textContent = fmt(loanState.paid);
+  document.getElementById('oz-loan-remaining-value').textContent = fmt(loanRemaining);
+}
+
+document.getElementById('oz-add-row').addEventListener('click', () => ozAddRow());
+ozOkladInput.addEventListener('input', ozRender);
+ozExtraInput.addEventListener('input', ozRender);
+ozOfficialAdvanceInput.addEventListener('input', ozRender);
+ozOfficialSalaryInput.addEventListener('input', ozRender);
+ozAdvanceInput.addEventListener('input', ozRender);
+ozLoanTotalInput.addEventListener('input', () => {
+  const state = ozLoadLoanState();
+  state.total = parseFloat(ozLoanTotalInput.value) || state.total;
+  ozSaveLoanState(state);
+  ozRender();
+});
+
+document.querySelectorAll('[data-oz-preset]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.dataset.ozPreset === 'clear') {
+      ozRows = [];
+      ozOkladInput.value = 25000;
+      ozExtraInput.value = '';
+      ozOfficialAdvanceInput.value = 5420;
+      ozOfficialSalaryInput.value = 8314;
+      ozAdvanceInput.value = 11000;
+      ozMonthInput.value = '2026-09';
+      ozRender();
+    }
+  });
+});
+
+// ---------- ОЗОН: история расчётов ----------
+
+const OZ_HISTORY_KEY = 'ozonSalaryHistory_v1';
+
+function ozLoadHistoryRaw() {
+  try {
+    const raw = localStorage.getItem(OZ_HISTORY_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) { return {}; }
+}
+
+function ozSaveHistoryRaw(hist) {
+  try { localStorage.setItem(OZ_HISTORY_KEY, JSON.stringify(hist)); } catch (e) {}
+}
+
+function ozComputeMonthTotal(entry) {
+  const oklad = entry.oklad;
+  let bonusSum = 0;
+  entry.rows.forEach(row => { bonusSum += ozComputeRow(row).total; });
+  const totalAccrued = oklad + bonusSum + (entry.extra || 0);
+  return totalAccrued - (entry.officialAdvance || 0) - (entry.officialSalary || 0) - (entry.advance !== undefined ? entry.advance : 11000);
+}
+
+function ozRenderHistory() {
+  const hist = ozLoadHistoryRaw();
+  const container = document.getElementById('oz-history-list');
+  container.innerHTML = '';
+  const months = Object.keys(hist).sort().reverse();
+  if (months.length === 0) {
+    const p = document.createElement('p');
+    p.className = 'history-empty';
+    p.textContent = 'Пока нет сохранённых расчётов.';
+    container.appendChild(p);
+    return;
+  }
+  months.forEach(ym => {
+    const entry = hist[ym];
+    const total = ozComputeMonthTotal(entry);
+    const item = document.createElement('div');
+    item.className = 'history-item';
+
+    const info = document.createElement('div');
+    info.className = 'hist-info';
+    const monthSpan = document.createElement('span');
+    monthSpan.className = 'hist-month';
+    monthSpan.textContent = monthLabel(ym);
+    const totalSpan = document.createElement('span');
+    totalSpan.className = 'hist-total';
+    totalSpan.textContent = fmt(total);
+    info.appendChild(monthSpan);
+    info.appendChild(totalSpan);
+    item.appendChild(info);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'hist-remove';
+    removeBtn.innerHTML = '✕';
+    removeBtn.title = 'Удалить сохранённый расчёт';
+    removeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const h = ozLoadHistoryRaw();
+      delete h[ym];
+      ozSaveHistoryRaw(h);
+      ozRenderHistory();
+    });
+    item.appendChild(removeBtn);
+
+    item.addEventListener('click', () => {
+      ozMonthInput.value = ym;
+      ozOkladInput.value = entry.oklad;
+      ozExtraInput.value = entry.extra || '';
+      ozOfficialAdvanceInput.value = entry.officialAdvance !== undefined ? entry.officialAdvance : 5420;
+      ozOfficialSalaryInput.value = entry.officialSalary !== undefined ? entry.officialSalary : 8314;
+      ozAdvanceInput.value = entry.advance !== undefined ? entry.advance : 11000;
+      ozRows = entry.rows.map(r => ozNewRow(r));
+      ozRender();
+    });
+
+    container.appendChild(item);
+  });
+}
+
+document.getElementById('oz-save-calc-btn').addEventListener('click', () => {
+  const ym = ozMonthInput.value;
+  const hist = ozLoadHistoryRaw();
+  hist[ym] = {
+    oklad: parseFloat(ozOkladInput.value) || 0,
+    extra: parseFloat(ozExtraInput.value) || 0,
+    officialAdvance: parseFloat(ozOfficialAdvanceInput.value) || 0,
+    officialSalary: parseFloat(ozOfficialSalaryInput.value) || 0,
+    advance: parseFloat(ozAdvanceInput.value) || 0,
+    rows: ozRows.map(r => ({name: r.name, profit: r.profit, plan: r.plan, margin: r.margin, catOverride: r.catOverride})),
+  };
+  ozSaveHistoryRaw(hist);
+
+  // списываем платёж по займу один раз за месяц
+  const loanState = ozLoadLoanState();
+  loanState.total = parseFloat(ozLoanTotalInput.value) || loanState.total;
+  if (!loanState.paidMonths.includes(ym)) {
+    const remaining = Math.max(0, loanState.total - loanState.paid);
+    const deduction = Math.min(5000, remaining);
+    if (deduction > 0) {
+      loanState.paid += deduction;
+      loanState.paidMonths.push(ym);
+      ozSaveLoanState(loanState);
+    }
+  }
+
+  ozRenderHistory();
+  ozRender();
+  const btn = document.getElementById('oz-save-calc-btn');
+  const original = btn.textContent;
+  btn.textContent = 'Сохранено ✓';
+  setTimeout(() => { btn.textContent = original; }, 1500);
+});
+
+function ozSeedHistoryIfEmpty() { return; }
+
+// ---------- ОЗОН: инициализация ----------
+
+ozSeedHistoryIfEmpty();
+ozRenderHistory();
+ozLoanTotalInput.value = ozLoadLoanState().total;
+const ozInitialHist = ozLoadHistoryRaw();
+const ozInitialMonths = Object.keys(ozInitialHist).sort();
+if (ozInitialMonths.length > 0) {
+  const latestYm = ozInitialMonths[ozInitialMonths.length - 1];
+  const entry = ozInitialHist[latestYm];
+  ozMonthInput.value = latestYm;
+  ozOkladInput.value = entry.oklad;
+  ozExtraInput.value = entry.extra || '';
+  ozOfficialAdvanceInput.value = entry.officialAdvance !== undefined ? entry.officialAdvance : 5420;
+  ozOfficialSalaryInput.value = entry.officialSalary !== undefined ? entry.officialSalary : 8314;
+  ozAdvanceInput.value = entry.advance !== undefined ? entry.advance : 11000;
+  ozRows = entry.rows.map(r => ozNewRow(r));
+} else {
+  ozAddRow({name: 'Артикул 1'});
+}
+ozRender();
+
+// ---------- ЯМ: тарифная сетка (Оплата труда 2025, действует с авг. 2025) ----------
+
+const YM_TARIFF = {
+  oklad: 25000,
+  catA: {
+    planTable: [
+      {min: 75, bonus: 3000},
+      {min: 86, bonus: 6000},
+      {min: 95.001, bonus: 9000},
+    ],
+    marginTable: [
+      {min: 18, bonus: 3000},
+      {min: 25, bonus: 6000},
+      {min: 30.001, bonus: 9000},
+    ],
+  },
+  catB: {
+    planTable: [
+      {min: 75, bonus: 1500},
+      {min: 86, bonus: 3000},
+      {min: 95.001, bonus: 4500},
+    ],
+    marginTable: [
+      {min: 18, bonus: 1500},
+      {min: 25, bonus: 3000},
+      {min: 30.001, bonus: 4500},
+    ],
+  },
+};
+
+function ymAutoCategory(profit) {
+  if (profit > 100000) return 'A';
+  if (profit >= 50000) return 'B';
+  if (profit >= 30000) return 'C';
+  return '0';
+}
+
+function ymComputeRow(row) {
+  const profit = parseFloat(row.profit) || 0;
+  const plan = parseFloat(row.plan);
+  const margin = parseFloat(row.margin);
+  const cat = row.catOverride || ymAutoCategory(profit);
+  let planBonus = 0, marginBonus = 0;
+  if (cat === 'A') {
+    planBonus = isNaN(plan) ? 0 : bracket(plan, YM_TARIFF.catA.planTable);
+    marginBonus = isNaN(margin) ? 0 : bracket(margin, YM_TARIFF.catA.marginTable);
+  } else if (cat === 'B') {
+    planBonus = isNaN(plan) ? 0 : bracket(plan, YM_TARIFF.catB.planTable);
+    marginBonus = isNaN(margin) ? 0 : bracket(margin, YM_TARIFF.catB.marginTable);
+  } else if (cat === 'C') {
+    planBonus = 0; marginBonus = 2000;
+  } else {
+    planBonus = 0; marginBonus = 0;
+  }
+  return {cat, planBonus, marginBonus, total: planBonus + marginBonus};
+}
+
+let ymRows = [];
+let ymRowId = 0;
+
+function ymNewRow(data) {
+  ymRowId += 1;
+  return Object.assign({id: ymRowId, name: '', profit: '', plan: '', margin: '', catOverride: null}, data || {});
+}
+
+function ymAddRow(data) {
+  ymRows.push(ymNewRow(data));
+  ymRender();
+}
+
+const ymMonthInput = document.getElementById('ym-period-month');
+const ymOkladInput = document.getElementById('ym-oklad-input');
+const ymExtraInput = document.getElementById('ym-extra-input');
+const ymOfficialAdvanceInput = document.getElementById('ym-official-advance-input');
+const ymOfficialSalaryInput = document.getElementById('ym-official-salary-input');
+const ymAdvanceInput = document.getElementById('ym-advance-input');
+const ymRowsBody = document.getElementById('ym-rows-body');
+
+function ymRender() {
+  ymRowsBody.innerHTML = '';
+  let bonusSum = 0;
+
+  ymRows.forEach(row => {
+    const r = ymComputeRow(row);
+    bonusSum += r.total;
+
+    const tr = document.createElement('tr');
+
+    const tdName = document.createElement('td');
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text'; nameInput.value = row.name; nameInput.placeholder = 'Например: Секатор';
+    nameInput.addEventListener('input', e => { row.name = e.target.value; });
+    tdName.appendChild(nameInput);
+    tr.appendChild(tdName);
+
+    const tdProfit = document.createElement('td');
+    const profitInput = document.createElement('input');
+    profitInput.type = 'number'; profitInput.value = row.profit; profitInput.placeholder = '0';
+    profitInput.addEventListener('input', e => { row.profit = e.target.value; ymRender(); });
+    tdProfit.appendChild(profitInput);
+    tr.appendChild(tdProfit);
+
+    const tdCat = document.createElement('td');
+    const badge = document.createElement('span');
+    badge.className = 'cat-badge cat-' + (r.cat === '0' ? 'C' : r.cat);
+    badge.style.opacity = r.cat === '0' ? '0.55' : '1';
+    badge.textContent = r.cat + (row.catOverride ? ' •' : '');
+    tdCat.appendChild(badge);
+    const overrideLink = document.createElement('span');
+    overrideLink.className = 'cat-override';
+    overrideLink.textContent = row.catOverride ? 'сбросить' : 'изменить';
+    overrideLink.addEventListener('click', () => {
+      if (row.catOverride) {
+        row.catOverride = null;
+      } else {
+        const options = ['A', 'B', 'C', '0'];
+        const next = options[(options.indexOf(r.cat) + 1) % 4];
+        row.catOverride = next;
+      }
+      ymRender();
+    });
+    tdCat.appendChild(overrideLink);
+    tr.appendChild(tdCat);
+
+    const tdPlan = document.createElement('td');
+    const planInput = document.createElement('input');
+    planInput.type = 'number'; planInput.value = row.plan; planInput.placeholder = '%';
+    planInput.addEventListener('input', e => { row.plan = e.target.value; ymRender(); });
+    tdPlan.appendChild(planInput);
+    tr.appendChild(tdPlan);
+
+    const tdMargin = document.createElement('td');
+    const marginInput = document.createElement('input');
+    marginInput.type = 'number'; marginInput.value = row.margin; marginInput.placeholder = '%';
+    marginInput.addEventListener('input', e => { row.margin = e.target.value; ymRender(); });
+    tdMargin.appendChild(marginInput);
+    tr.appendChild(tdMargin);
+
+    const tdPlanBonus = document.createElement('td'); tdPlanBonus.textContent = fmt(r.planBonus);
+    tr.appendChild(tdPlanBonus);
+    const tdMarginBonus = document.createElement('td'); tdMarginBonus.textContent = fmt(r.marginBonus);
+    tr.appendChild(tdMarginBonus);
+    const tdTotal = document.createElement('td'); tdTotal.className = 'bonus-total'; tdTotal.textContent = fmt(r.total);
+    tr.appendChild(tdTotal);
+
+    const tdRemove = document.createElement('td');
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'row-remove'; removeBtn.innerHTML = '✕';
+    removeBtn.addEventListener('click', () => {
+      ymRows = ymRows.filter(x => x.id !== row.id);
+      ymRender();
+    });
+    tdRemove.appendChild(removeBtn);
+    tr.appendChild(tdRemove);
+
+    ymRowsBody.appendChild(tr);
+  });
+
+  const oklad = parseFloat(ymOkladInput.value) || 0;
+  const extra = parseFloat(ymExtraInput.value) || 0;
+  const officialAdvance = parseFloat(ymOfficialAdvanceInput.value) || 0;
+  const officialSalary = parseFloat(ymOfficialSalaryInput.value) || 0;
+  const unofficialAdvance = parseFloat(ymAdvanceInput.value) || 0;
+  const totalAccrued = oklad + bonusSum + extra;
+  const remainder = totalAccrued - officialAdvance - officialSalary - unofficialAdvance;
+
+  document.getElementById('ym-final-value').textContent = fmt(remainder);
+  document.getElementById('ym-mini-oklad').textContent = fmt(oklad);
+  document.getElementById('ym-mini-bonus').textContent = fmt(bonusSum);
+  document.getElementById('ym-mini-extra').textContent = fmt(extra);
+  document.getElementById('ym-mini-total').textContent = fmt(totalAccrued);
+  document.getElementById('ym-official-value').textContent = fmt(officialAdvance + officialSalary);
+  document.getElementById('ym-advance-value').textContent = fmt(unofficialAdvance);
+  document.getElementById('ym-unofficial-value').textContent = fmt(remainder);
+}
+
+document.getElementById('ym-add-row').addEventListener('click', () => ymAddRow());
+ymOkladInput.addEventListener('input', ymRender);
+ymExtraInput.addEventListener('input', ymRender);
+ymOfficialAdvanceInput.addEventListener('input', ymRender);
+ymOfficialSalaryInput.addEventListener('input', ymRender);
+ymAdvanceInput.addEventListener('input', ymRender);
+
+document.querySelectorAll('[data-ym-preset]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.dataset.ymPreset === 'clear') {
+      ymRows = [];
+      ymOkladInput.value = 25000;
+      ymExtraInput.value = '';
+      ymOfficialAdvanceInput.value = 5421;
+      ymOfficialSalaryInput.value = 8314;
+      ymAdvanceInput.value = 10000;
+      ymMonthInput.value = '2026-09';
+      ymRender();
+    }
+  });
+});
+
+// ---------- ЯМ: история расчётов ----------
+
+const YM_HISTORY_KEY = 'ymSalaryHistory_v1';
+
+function ymLoadHistoryRaw() {
+  try {
+    const raw = localStorage.getItem(YM_HISTORY_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) { return {}; }
+}
+
+function ymSaveHistoryRaw(hist) {
+  try { localStorage.setItem(YM_HISTORY_KEY, JSON.stringify(hist)); } catch (e) {}
+}
+
+function ymSeedHistoryIfEmpty() { return; }
+
+function ymComputeMonthTotal(entry) {
+  const oklad = entry.oklad;
+  let bonusSum = 0;
+  entry.rows.forEach(row => { bonusSum += ymComputeRow(row).total; });
+  const totalAccrued = oklad + bonusSum + (entry.extra || 0);
+  return totalAccrued - (entry.officialAdvance || 0) - (entry.officialSalary || 0) - (entry.advance || 0);
+}
+
+function ymRenderHistory() {
+  const hist = ymLoadHistoryRaw();
+  const container = document.getElementById('ym-history-list');
+  container.innerHTML = '';
+  const months = Object.keys(hist).sort().reverse();
+  if (months.length === 0) {
+    const p = document.createElement('p');
+    p.className = 'history-empty';
+    p.textContent = 'Пока нет сохранённых расчётов.';
+    container.appendChild(p);
+    return;
+  }
+  months.forEach(ym => {
+    const entry = hist[ym];
+    const total = ymComputeMonthTotal(entry);
+    const item = document.createElement('div');
+    item.className = 'history-item';
+
+    const info = document.createElement('div');
+    info.className = 'hist-info';
+    const monthSpan = document.createElement('span');
+    monthSpan.className = 'hist-month';
+    monthSpan.textContent = monthLabel(ym);
+    const totalSpan = document.createElement('span');
+    totalSpan.className = 'hist-total';
+    totalSpan.textContent = fmt(total);
+    info.appendChild(monthSpan);
+    info.appendChild(totalSpan);
+    item.appendChild(info);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'hist-remove';
+    removeBtn.innerHTML = '✕';
+    removeBtn.title = 'Удалить сохранённый расчёт';
+    removeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const h = ymLoadHistoryRaw();
+      delete h[ym];
+      ymSaveHistoryRaw(h);
+      ymRenderHistory();
+    });
+    item.appendChild(removeBtn);
+
+    item.addEventListener('click', () => {
+      ymMonthInput.value = ym;
+      ymOkladInput.value = entry.oklad;
+      ymExtraInput.value = entry.extra || '';
+      ymOfficialAdvanceInput.value = entry.officialAdvance !== undefined ? entry.officialAdvance : 5421;
+      ymOfficialSalaryInput.value = entry.officialSalary !== undefined ? entry.officialSalary : 8314;
+      ymAdvanceInput.value = entry.advance || 10000;
+      ymRows = entry.rows.map(r => ymNewRow(r));
+      ymRender();
+    });
+
+    container.appendChild(item);
+  });
+}
+
+document.getElementById('ym-save-calc-btn').addEventListener('click', () => {
+  const ym = ymMonthInput.value;
+  const hist = ymLoadHistoryRaw();
+  hist[ym] = {
+    oklad: parseFloat(ymOkladInput.value) || 0,
+    extra: parseFloat(ymExtraInput.value) || 0,
+    officialAdvance: parseFloat(ymOfficialAdvanceInput.value) || 0,
+    officialSalary: parseFloat(ymOfficialSalaryInput.value) || 0,
+    advance: parseFloat(ymAdvanceInput.value) || 0,
+    rows: ymRows.map(r => ({name: r.name, profit: r.profit, plan: r.plan, margin: r.margin, catOverride: r.catOverride})),
+  };
+  ymSaveHistoryRaw(hist);
+  ymRenderHistory();
+  const btn = document.getElementById('ym-save-calc-btn');
+  const original = btn.textContent;
+  btn.textContent = 'Сохранено ✓';
+  setTimeout(() => { btn.textContent = original; }, 1500);
+});
+
+// ---------- ЯМ: инициализация ----------
+
+ymSeedHistoryIfEmpty();
+ymRenderHistory();
+const ymInitialHist = ymLoadHistoryRaw();
+const ymInitialMonths = Object.keys(ymInitialHist).sort();
+if (ymInitialMonths.length > 0) {
+  const latestYm = ymInitialMonths[ymInitialMonths.length - 1];
+  const entry = ymInitialHist[latestYm];
+  ymMonthInput.value = latestYm;
+  ymOkladInput.value = entry.oklad;
+  ymExtraInput.value = entry.extra || '';
+  ymOfficialAdvanceInput.value = entry.officialAdvance !== undefined ? entry.officialAdvance : 5421;
+  ymOfficialSalaryInput.value = entry.officialSalary !== undefined ? entry.officialSalary : 8314;
+  ymAdvanceInput.value = entry.advance || 10000;
+  ymRows = entry.rows.map(r => ymNewRow(r));
+} else {
+  ymAddRow({name: 'Артикул 1'});
+}
+ymRender();
+
+// ---------- РОП: расчёт (оклад + 3% от суммарной валовой маржи) ----------
+
+const ROP_DIRECTIONS = ['ВБ', 'Озон', 'ЯМ', 'ВБ ИП Тарасов'];
+
+let ropMargins = {};
+
+const ropMonthInput = document.getElementById('rop-period-month');
+const ropOkladInput = document.getElementById('rop-oklad-input');
+const ropAdvanceInput = document.getElementById('rop-advance-input');
+const ropRowsBody = document.getElementById('rop-rows-body');
+
+function ropRender() {
+  ropRowsBody.innerHTML = '';
+  let marginSum = 0;
+
+  ROP_DIRECTIONS.forEach(dir => {
+    const tr = document.createElement('tr');
+    const tdName = document.createElement('td');
+    tdName.textContent = dir;
+    tr.appendChild(tdName);
+
+    const tdVal = document.createElement('td');
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.step = '100';
+    input.value = ropMargins[dir] !== undefined ? ropMargins[dir] : '';
+    input.placeholder = '0';
+    input.addEventListener('input', e => {
+      ropMargins[dir] = e.target.value;
+      ropRender();
+    });
+    tdVal.appendChild(input);
+    tr.appendChild(tdVal);
+
+    ropRowsBody.appendChild(tr);
+    marginSum += parseFloat(ropMargins[dir]) || 0;
+  });
+
+  const oklad = parseFloat(ropOkladInput.value) || 0;
+  const advance = parseFloat(ropAdvanceInput.value) || 0;
+  const premium = marginSum * 0.03;
+  const final = oklad - advance + premium;
+
+  document.getElementById('rop-final-value').textContent = fmt(final);
+  document.getElementById('rop-mini-oklad').textContent = fmt(oklad);
+  document.getElementById('rop-mini-advance').textContent = fmt(advance);
+  document.getElementById('rop-mini-margin').textContent = fmt(marginSum);
+  document.getElementById('rop-mini-premium').textContent = fmt(premium);
+}
+
+ropOkladInput.addEventListener('input', ropRender);
+ropAdvanceInput.addEventListener('input', ropRender);
+
+document.querySelectorAll('[data-rop-preset]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.dataset.ropPreset === 'clear') {
+      ropMargins = {};
+      ropOkladInput.value = 80000;
+      ropAdvanceInput.value = 40000;
+      ropMonthInput.value = '2026-09';
+      ropRender();
+    }
+  });
+});
+
+// ---------- РОП: история расчётов ----------
+
+const ROP_HISTORY_KEY = 'ropSalaryHistory_v1';
+
+function ropLoadHistoryRaw() {
+  try {
+    const raw = localStorage.getItem(ROP_HISTORY_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) { return {}; }
+}
+
+function ropSaveHistoryRaw(hist) {
+  try { localStorage.setItem(ROP_HISTORY_KEY, JSON.stringify(hist)); } catch (e) {}
+}
+
+function ropSeedHistoryIfEmpty() { return; }
+
+function ropComputeMonthTotal(entry) {
+  let marginSum = 0;
+  ROP_DIRECTIONS.forEach(dir => { marginSum += parseFloat(entry.margins[dir]) || 0; });
+  return entry.oklad - entry.advance + marginSum * 0.03;
+}
+
+function ropRenderHistory() {
+  const hist = ropLoadHistoryRaw();
+  const container = document.getElementById('rop-history-list');
+  container.innerHTML = '';
+  const months = Object.keys(hist).sort().reverse();
+  if (months.length === 0) {
+    const p = document.createElement('p');
+    p.className = 'history-empty';
+    p.textContent = 'Пока нет сохранённых расчётов.';
+    container.appendChild(p);
+    return;
+  }
+  months.forEach(ym => {
+    const entry = hist[ym];
+    const total = ropComputeMonthTotal(entry);
+    const item = document.createElement('div');
+    item.className = 'history-item';
+
+    const info = document.createElement('div');
+    info.className = 'hist-info';
+    const monthSpan = document.createElement('span');
+    monthSpan.className = 'hist-month';
+    monthSpan.textContent = monthLabel(ym);
+    const totalSpan = document.createElement('span');
+    totalSpan.className = 'hist-total';
+    totalSpan.textContent = fmt(total);
+    info.appendChild(monthSpan);
+    info.appendChild(totalSpan);
+    item.appendChild(info);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'hist-remove';
+    removeBtn.innerHTML = '✕';
+    removeBtn.title = 'Удалить сохранённый расчёт';
+    removeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const h = ropLoadHistoryRaw();
+      delete h[ym];
+      ropSaveHistoryRaw(h);
+      ropRenderHistory();
+    });
+    item.appendChild(removeBtn);
+
+    item.addEventListener('click', () => {
+      ropMonthInput.value = ym;
+      ropOkladInput.value = entry.oklad;
+      ropAdvanceInput.value = entry.advance;
+      ropMargins = Object.assign({}, entry.margins);
+      ropRender();
+    });
+
+    container.appendChild(item);
+  });
+}
+
+document.getElementById('rop-save-calc-btn').addEventListener('click', () => {
+  const ym = ropMonthInput.value;
+  const hist = ropLoadHistoryRaw();
+  hist[ym] = {
+    oklad: parseFloat(ropOkladInput.value) || 0,
+    advance: parseFloat(ropAdvanceInput.value) || 0,
+    margins: Object.assign({}, ropMargins),
+  };
+  ropSaveHistoryRaw(hist);
+  ropRenderHistory();
+  const btn = document.getElementById('rop-save-calc-btn');
+  const original = btn.textContent;
+  btn.textContent = 'Сохранено ✓';
+  setTimeout(() => { btn.textContent = original; }, 1500);
+});
+
+// ---------- РОП: инициализация ----------
+
+ropSeedHistoryIfEmpty();
+ropRenderHistory();
+const ropInitialHist = ropLoadHistoryRaw();
+const ropInitialMonths = Object.keys(ropInitialHist).sort();
+if (ropInitialMonths.length > 0) {
+  const latestYm = ropInitialMonths[ropInitialMonths.length - 1];
+  const entry = ropInitialHist[latestYm];
+  ropMonthInput.value = latestYm;
+  ropOkladInput.value = entry.oklad;
+  ropAdvanceInput.value = entry.advance;
+  ropMargins = Object.assign({}, entry.margins);
+}
+ropRender();
+
+// ---------- АССИСТЕНТ: расчёт (фикс 11000/10000 + доплаты) ----------
+
+const asMonthInput = document.getElementById('as-period-month');
+const asOfficialAdvanceInput = document.getElementById('as-official-advance-input');
+const asOfficialSalaryInput = document.getElementById('as-official-salary-input');
+const asBloggersInput = document.getElementById('as-bloggers-input');
+const asPurchaseVolumeInput = document.getElementById('as-purchase-volume-input');
+const asSchoolsInput = document.getElementById('as-schools-input');
+
+const AS_BASE_ADVANCE = 11000;
+const AS_BASE_SALARY = 10000;
+
+function asCalc(e) {
+  const officialAdvance = parseFloat(e.officialAdvance) || 0;
+  const officialSalary = parseFloat(e.officialSalary) || 0;
+  const bloggers = parseFloat(e.bloggers) || 0;
+  const purchaseBonus = (parseFloat(e.purchaseVolume) || 0) * 0.01;
+  const schools = parseFloat(e.schools) || 0;
+  const advNeof = AS_BASE_ADVANCE;
+  const salNeof = AS_BASE_SALARY + bloggers + purchaseBonus + schools;
+  return {
+    advOf: officialAdvance, advNeof, salOf: officialSalary, salNeof, purchaseBonus,
+    total: officialAdvance + advNeof + officialSalary + salNeof,
+  };
+}
+
+function asCurrentInput() {
+  return {
+    officialAdvance: asOfficialAdvanceInput.value,
+    officialSalary: asOfficialSalaryInput.value,
+    bloggers: asBloggersInput.value,
+    purchaseVolume: asPurchaseVolumeInput.value,
+    schools: asSchoolsInput.value,
+  };
+}
+
+function asRender() {
+  const r = asCalc(asCurrentInput());
+  document.getElementById('as-salneof-value').textContent = fmt(r.salNeof);
+  document.getElementById('as-mini-advance').textContent = fmt(r.advOf + r.advNeof);
+  document.getElementById('as-mini-purchase').textContent = fmt(r.purchaseBonus);
+  document.getElementById('as-mini-salof').textContent = fmt(r.salOf);
+  document.getElementById('as-mini-total').textContent = fmt(r.total);
+}
+
+[asOfficialAdvanceInput, asOfficialSalaryInput, asBloggersInput, asPurchaseVolumeInput, asSchoolsInput].forEach(el => {
+  el.addEventListener('input', asRender);
+});
+
+// ---------- АССИСТЕНТ: история ----------
+
+const AS_HISTORY_KEY = 'asSalaryHistory_v1';
+
+function asLoadHistoryRaw() {
+  try {
+    const raw = localStorage.getItem(AS_HISTORY_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) { return {}; }
+}
+
+function asSaveHistoryRaw(hist) {
+  try { localStorage.setItem(AS_HISTORY_KEY, JSON.stringify(hist)); } catch (e) {}
+}
+
+function asSeedHistoryIfEmpty() { return; }
+
+function asGetAutoData(ym) {
+  const h = asLoadHistoryRaw()[ym];
+  if (!h) return null;
+  const r = asCalc(h);
+  return {advOf: r.advOf, advNeof: r.advNeof, salOf: r.salOf, salNeof: r.salNeof};
+}
+
+function asFillForm(entry) {
+  asOfficialAdvanceInput.value = entry.officialAdvance || 0;
+  asOfficialSalaryInput.value = entry.officialSalary || 0;
+  asBloggersInput.value = entry.bloggers || '';
+  asPurchaseVolumeInput.value = entry.purchaseVolume || '';
+  asSchoolsInput.value = entry.schools || '';
+}
+
+function asRenderHistory() {
+  const hist = asLoadHistoryRaw();
+  const container = document.getElementById('as-history-list');
+  container.innerHTML = '';
+  const months = Object.keys(hist).sort().reverse();
+  if (months.length === 0) {
+    const p = document.createElement('p');
+    p.className = 'history-empty';
+    p.textContent = 'Пока нет сохранённых расчётов.';
+    container.appendChild(p);
+    return;
+  }
+  months.forEach(ym => {
+    const entry = hist[ym];
+    const item = document.createElement('div');
+    item.className = 'history-item';
+
+    const info = document.createElement('div');
+    info.className = 'hist-info';
+    const monthSpan = document.createElement('span');
+    monthSpan.className = 'hist-month';
+    monthSpan.textContent = monthLabel(ym);
+    const totalSpan = document.createElement('span');
+    totalSpan.className = 'hist-total';
+    totalSpan.textContent = fmt(asCalc(entry).total);
+    info.appendChild(monthSpan);
+    info.appendChild(totalSpan);
+    item.appendChild(info);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'hist-remove';
+    removeBtn.innerHTML = '✕';
+    removeBtn.title = 'Удалить сохранённый расчёт';
+    removeBtn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const h = asLoadHistoryRaw();
+      delete h[ym];
+      asSaveHistoryRaw(h);
+      asRenderHistory();
+    });
+    item.appendChild(removeBtn);
+
+    item.addEventListener('click', () => {
+      asMonthInput.value = ym;
+      asFillForm(entry);
+      asRender();
+    });
+
+    container.appendChild(item);
+  });
+}
+
+document.getElementById('as-save-calc-btn').addEventListener('click', () => {
+  const ym = asMonthInput.value;
+  const hist = asLoadHistoryRaw();
+  const cur = asCurrentInput();
+  hist[ym] = {
+    officialAdvance: parseFloat(cur.officialAdvance) || 0,
+    officialSalary: parseFloat(cur.officialSalary) || 0,
+    bloggers: parseFloat(cur.bloggers) || 0,
+    purchaseVolume: parseFloat(cur.purchaseVolume) || 0,
+    schools: parseFloat(cur.schools) || 0,
+  };
+  asSaveHistoryRaw(hist);
+  asRenderHistory();
+  const btn = document.getElementById('as-save-calc-btn');
+  const original = btn.textContent;
+  btn.textContent = 'Сохранено ✓';
+  setTimeout(() => { btn.textContent = original; }, 1500);
+});
+
+// ---------- АССИСТЕНТ: инициализация ----------
+
+asSeedHistoryIfEmpty();
+asRenderHistory();
+const asInitialHist = asLoadHistoryRaw();
+const asInitialMonths = Object.keys(asInitialHist).sort();
+if (asInitialMonths.length > 0) {
+  const latestYm = asInitialMonths[asInitialMonths.length - 1];
+  asMonthInput.value = latestYm;
+  asFillForm(asInitialHist[latestYm]);
+}
+asRender();
+
+// ---------- ВЕДОМОСТЬ: подтяжка данных из других вкладок ----------
+
+function vedGetAutoData(source, ym) {
+  if (source === 'wb') {
+    const hist = loadHistoryRaw();
+    const h = hist[ym];
+    if (!h) return null;
+    const tariffKey = tariffForMonth(ym);
+    const t = TARIFFS[tariffKey];
+    const oklad = h.manualOklad ? h.oklad : t.oklad;
+    let bonusSum = 0;
+    h.rows.forEach(r => { bonusSum += computeRow(r, tariffKey).total; });
+    return {advNeof: oklad / 2, salNeof: oklad / 2 + bonusSum, salOf: 0};
+  }
+  if (source === 'oz') {
+    const h = ozLoadHistoryRaw()[ym];
+    if (!h) return null;
+    let bonusSum = 0;
+    h.rows.forEach(r => { bonusSum += ozComputeRow(r).total; });
+    const totalAccrued = h.oklad + bonusSum + (h.extra || 0);
+    const loanState = ozLoadLoanState();
+    const loanRemainingNow = Math.max(0, (loanState.total || 350000) - loanState.paid);
+    const loanDeduction = Math.min(5000, loanRemainingNow);
+    const officialAdvance = h.officialAdvance || 0;
+    const officialSalary = h.officialSalary || 0;
+    return {advOf: officialAdvance, advNeof: h.advance, salNeof: totalAccrued - officialAdvance - officialSalary - h.advance - loanDeduction, salOf: officialSalary};
+  }
+  if (source === 'ym') {
+    const h = ymLoadHistoryRaw()[ym];
+    if (!h) return null;
+    let bonusSum = 0;
+    h.rows.forEach(r => { bonusSum += ymComputeRow(r).total; });
+    const totalAccrued = h.oklad + bonusSum + (h.extra || 0);
+    const officialAdvance = h.officialAdvance || 0;
+    const officialSalary = h.officialSalary || 0;
+    return {advOf: officialAdvance, advNeof: h.advance, salNeof: totalAccrued - officialAdvance - officialSalary - h.advance, salOf: officialSalary};
+  }
+  if (source === 'as') {
+    return asGetAutoData(ym);
+  }
+  if (source === 'rop') {
+    const h = ropLoadHistoryRaw()[ym];
+    if (!h) return null;
+    let marginSum = 0;
+    ROP_DIRECTIONS.forEach(dir => { marginSum += parseFloat(h.margins[dir]) || 0; });
+    const premium = marginSum * 0.03;
+    return {advNeof: h.advance, salNeof: h.oklad - h.advance + premium, salOf: 0};
+  }
+  return null;
+}
+
+const VED_SOURCE_LABEL = {wb: 'авто · ВБ', oz: 'авто · Озон', ym: 'авто · ЯМ', rop: 'авто · РОП', as: 'авто · Ассистент'};
+
+let vedRows = [];
+let vedRowId = 0;
+
+function vedNewRow(data) {
+  vedRowId += 1;
+  return Object.assign({
+    id: vedRowId, name: '', bank: '', method: '', premium: false, source: null,
+    advOf: '', advNeof: '', salOf: '', salNeof: '',
+    paid: {advOf: false, advNeof: false, salOf: false, salNeof: false},
+  }, data || {}, {paid: Object.assign({advOf: false, advNeof: false, salOf: false, salNeof: false}, (data && data.paid) || {})});
+}
+
+function vedAddRow(data) {
+  vedRows.push(vedNewRow(data));
+  vedRender();
+}
+
+const vedMonthInput = document.getElementById('ved-period-month');
+const vedRowsBody = document.getElementById('ved-rows-body');
+
+function vedMoneyCell(tr, row, field, autoValue, isAuto) {
+  const td = document.createElement('td');
+  const wrap = document.createElement('div');
+  wrap.className = 'ved-cell';
+
+  if (isAuto) {
+    const span = document.createElement('span');
+    span.textContent = fmt(autoValue || 0);
+    wrap.appendChild(span);
+  } else {
+    const input = document.createElement('input');
+    input.type = 'number'; input.value = row[field]; input.placeholder = '0';
+    input.addEventListener('input', e => { row[field] = e.target.value; vedRender(); });
+    wrap.appendChild(input);
+  }
+
+  const toggle = document.createElement('button');
+  toggle.className = 'ved-paid-toggle';
+  toggle.textContent = '✓';
+  toggle.title = 'Отметить как выплаченное';
+  toggle.addEventListener('click', () => {
+    row.paid[field] = !row.paid[field];
+    vedRender();
+  });
+  wrap.appendChild(toggle);
+
+  td.appendChild(wrap);
+  if (row.paid[field]) td.classList.add('ved-paid');
+  tr.appendChild(td);
+}
+
+function vedRender() {
+  vedRowsBody.innerHTML = '';
+  let sumAdvOf = 0, sumAdvNeof = 0, sumSalOf = 0, sumSalNeof = 0;
+  const ym = vedMonthInput.value;
+
+  vedRows.forEach(row => {
+    let advOf = row.advOf, advNeof = row.advNeof, salOf = row.salOf, salNeof = row.salNeof;
+    let isAuto = false;
+    let isAutoOfficial = false;
+    if (row.source) {
+      const auto = vedGetAutoData(row.source, ym);
+      if (auto) {
+        advNeof = auto.advNeof;
+        salNeof = auto.salNeof;
+        salOf = auto.salOf;
+        isAuto = true;
+        if (auto.advOf !== undefined) {
+          advOf = auto.advOf;
+          isAutoOfficial = true;
+        }
+      }
+    }
+    sumAdvOf += parseFloat(advOf) || 0;
+    sumAdvNeof += parseFloat(advNeof) || 0;
+    sumSalOf += parseFloat(salOf) || 0;
+    sumSalNeof += parseFloat(salNeof) || 0;
+
+    const tr = document.createElement('tr');
+
+    const tdName = document.createElement('td');
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text'; nameInput.value = row.name; nameInput.placeholder = 'ФИО';
+    nameInput.addEventListener('input', e => { row.name = e.target.value; });
+    tdName.appendChild(nameInput);
+    if (row.source) {
+      const badge = document.createElement('span');
+      badge.className = 'ved-source-badge';
+      badge.textContent = VED_SOURCE_LABEL[row.source] + (isAuto ? '' : ' · нет данных');
+      tdName.appendChild(badge);
+    }
+    tr.appendChild(tdName);
+
+    vedMoneyCell(tr, row, 'advOf', advOf, isAutoOfficial);
+    vedMoneyCell(tr, row, 'advNeof', advNeof, isAuto);
+    vedMoneyCell(tr, row, 'salOf', salOf, isAutoOfficial);
+    vedMoneyCell(tr, row, 'salNeof', salNeof, isAuto);
+
+    const tdBank = document.createElement('td');
+    const bankInput = document.createElement('input');
+    bankInput.type = 'text'; bankInput.value = row.bank; bankInput.placeholder = 'банк';
+    bankInput.addEventListener('input', e => { row.bank = e.target.value; });
+    tdBank.appendChild(bankInput);
+    tr.appendChild(tdBank);
+
+    const tdMethod = document.createElement('td');
+    const methodInput = document.createElement('input');
+    methodInput.type = 'text'; methodInput.value = row.method; methodInput.placeholder = '';
+    methodInput.addEventListener('input', e => { row.method = e.target.value; });
+    tdMethod.appendChild(methodInput);
+    tr.appendChild(tdMethod);
+
+    const tdPremium = document.createElement('td');
+    const premiumInput = document.createElement('input');
+    premiumInput.type = 'checkbox'; premiumInput.checked = !!row.premium;
+    premiumInput.addEventListener('change', e => { row.premium = e.target.checked; });
+    tdPremium.appendChild(premiumInput);
+    tr.appendChild(tdPremium);
+
+    const tdRemove = document.createElement('td');
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'row-remove'; removeBtn.innerHTML = '✕';
+    removeBtn.addEventListener('click', () => {
+      vedRows = vedRows.filter(x => x.id !== row.id);
+      vedRender();
+    });
+    tdRemove.appendChild(removeBtn);
+    tr.appendChild(tdRemove);
+
+    vedRowsBody.appendChild(tr);
+  });
+
+  document.getElementById('ved-total-adv-of').textContent = fmt(sumAdvOf);
+  document.getElementById('ved-total-adv-neof').textContent = fmt(sumAdvNeof);
+  document.getElementById('ved-total-sal-of').textContent = fmt(sumSalOf);
+  document.getElementById('ved-total-sal-neof').textContent = fmt(sumSalNeof);
+}
+
+document.getElementById('ved-add-row').addEventListener('click', () => vedAddRow());
+vedMonthInput.addEventListener('input', vedRender);
+
+// ---------- ВЕДОМОСТЬ: история ----------
+
+const VED_HISTORY_KEY = 'vedSalaryHistory_v1';
+
+function vedLoadHistoryRaw() {
+  try {
+    const raw = localStorage.getItem(VED_HISTORY_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) { return {}; }
+}
+
+function vedSaveHistoryRaw(hist) {
+  try { localStorage.setItem(VED_HISTORY_KEY, JSON.stringify(hist)); } catch (e) {}
+}
+
+function vedDefaultRoster() {
+  return [
+    {name: 'Менеджер WB', bank: '', source: 'wb'},
+    {name: 'Менеджер Озон', bank: '', source: 'oz'},
+    {name: 'Менеджер ЯМ', bank: '', source: 'ym'},
+    {name: 'РОП', bank: '', source: 'rop'},
+    {name: 'Ассистент', bank: '', source: 'as'},
+  ];
+}
+
+function vedSeedHistoryIfEmpty() { return; }
+
+function vedComputeMonthTotal(entry, ym) {
+  let salarySum = 0;
+  entry.roster.forEach(row => {
+    if (row.source) {
+      const auto = vedGetAutoData(row.source, ym);
+      salarySum += auto ? ((auto.salNeof || 0) + (auto.salOf || 0)) : 0;
+    } else {
+      salarySum += (parseFloat(row.salNeof) || 0) + (parseFloat(row.salOf) || 0);
+    }
+  });
+  return salarySum;
+}
+
+function vedRenderHistory() {
+  const hist = vedLoadHistoryRaw();
+  const container = document.getElementById('ved-history-list');
+  container.innerHTML = '';
+  const months = Object.keys(hist).sort().reverse();
+  if (months.length === 0) {
+    const p = document.createElement('p');
+    p.className = 'history-empty';
+    p.textContent = 'Пока нет сохранённых ведомостей.';
+    container.appendChild(p);
+    return;
+  }
+  months.forEach(ym => {
+    const entry = hist[ym];
+    const total = vedComputeMonthTotal(entry, ym);
+    const item = document.createElement('div');
+    item.className = 'history-item';
+
+    const info = document.createElement('div');
+    info.className = 'hist-info';
+    const monthSpan = document.createElement('span');
+    monthSpan.className = 'hist-month';
+    monthSpan.textContent = monthLabel(ym);
+    const totalSpan = document.createElement('span');
+    totalSpan.className = 'hist-total';
+    totalSpan.textContent = fmt(total) + ' всего ЗП';
+    info.appendChild(monthSpan);
+    info.appendChild(totalSpan);
+    item.appendChild(info);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'hist-remove';
+    removeBtn.innerHTML = '✕';
+    removeBtn.title = 'Удалить сохранённую ведомость';
+    removeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const h = vedLoadHistoryRaw();
+      delete h[ym];
+      vedSaveHistoryRaw(h);
+      vedRenderHistory();
+    });
+    item.appendChild(removeBtn);
+
+    item.addEventListener('click', () => {
+      vedMonthInput.value = ym;
+      vedRows = entry.roster.map(r => vedNewRow(r));
+      vedRender();
+    });
+
+    container.appendChild(item);
+  });
+}
+
+document.getElementById('ved-save-calc-btn').addEventListener('click', () => {
+  const ym = vedMonthInput.value;
+  const hist = vedLoadHistoryRaw();
+  hist[ym] = {
+    roster: vedRows.map(r => ({
+      name: r.name, bank: r.bank, method: r.method, premium: r.premium, source: r.source,
+      advOf: r.advOf, advNeof: r.advNeof, salOf: r.salOf, salNeof: r.salNeof, paid: r.paid,
+    })),
+  };
+  vedSaveHistoryRaw(hist);
+  vedRenderHistory();
+  const btn = document.getElementById('ved-save-calc-btn');
+  const original = btn.textContent;
+  btn.textContent = 'Сохранено ✓';
+  setTimeout(() => { btn.textContent = original; }, 1500);
+});
+
+// ---------- ВЕДОМОСТЬ: инициализация ----------
+
+vedSeedHistoryIfEmpty();
+vedRenderHistory();
+const vedInitialHist = vedLoadHistoryRaw();
+const vedInitialMonths = Object.keys(vedInitialHist).sort();
+if (vedInitialMonths.length > 0) {
+  const latestYm = vedInitialMonths[vedInitialMonths.length - 1];
+  vedMonthInput.value = latestYm;
+  vedRows = vedInitialHist[latestYm].roster.map(r => vedNewRow(r));
+} else {
+  vedRows = vedDefaultRoster().map(r => vedNewRow(r));
+}
+vedRender();
+</script>
+<script src="vendor/xlsx.full.min.js"></script>
+<script src="js/parser.js"></script>
+<script src="js/sync.js"></script>
+<script src="js/sync-ui.js"></script>
+<script src="js/upload.js"></script>
+</body>
+</html>
