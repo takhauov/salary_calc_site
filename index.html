@@ -192,6 +192,13 @@
     padding: 9px 16px; font-size: 14px; cursor: pointer; color: var(--muted); font-weight: 550;
   }
   .tab-btn.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .main-tabs .tab-btn { font-size: 15px; padding: 10px 22px; }
+  .sub-tabs { flex-wrap: wrap; }
+  .sub-tabs .tab-btn { font-size: 13px; padding: 7px 13px; }
+  .ved-cell input.ved-auto { background: #F1F6FC; }
+  .ved-cell input.ved-ovr { background: #FFF3DC; border-color: #E3B341; }
+  .ved-reset { border: 1px solid var(--line); background:#fff; border-radius:5px; width:22px; height:22px; font-size:12px; line-height:1; cursor:pointer; color: var(--muted); flex-shrink:0; visibility:hidden; }
+  .ved-reset.on { visibility: visible; }
   .off-split { display:flex; gap: 20px; margin-top: 10px; flex-wrap: wrap; }
   .off-split .item .label { font-size: 12px; color: var(--muted); margin-bottom: 2px; }
   .off-split .item .value { font-size: 15px; font-weight: 600; }
@@ -298,14 +305,17 @@
   <div id="gh-backups" style="margin-top:8px;font-size:13px"></div>
 </div>
 
-<div class="tabs">
+<div class="tabs main-tabs">
+  <button class="tab-btn main-btn active" data-main="calc">Калькулятор</button>
+  <button class="tab-btn main-btn" data-main="ved">Ведомость</button>
+</div>
+<div class="tabs sub-tabs" id="calc-subtabs">
   <button class="tab-btn" data-tab="up">Загрузка отчётов</button>
   <button class="tab-btn active" data-tab="wb">Менеджер ВБ</button>
   <button class="tab-btn" data-tab="oz">Менеджер Озон</button>
   <button class="tab-btn" data-tab="ym">Менеджер ЯМ</button>
   <button class="tab-btn" data-tab="rop">РОП</button>
   <button class="tab-btn" data-tab="as">Ассистент</button>
-  <button class="tab-btn" data-tab="ved">Ведомость</button>
 </div>
 
 <div class="layout" id="tab-up" style="display:none;">
@@ -786,12 +796,12 @@
       <button class="add-btn" id="ved-add-row">+ Добавить сотрудника</button>
     </div>
 
-    <p class="foot-note">Строки со значком &laquo;авто&raquo; подтягивают неофициальные суммы из соответствующей вкладки калькулятора за выбранный месяц (нужно, чтобы расчёт там был сохранён); официальная часть для них &mdash; из поля &laquo;официальная часть&raquo; той вкладки (если есть) или вручную. Остальные сотрудники &mdash; полностью ручной ввод. Кнопка &laquo;&check;&raquo; рядом с суммой отмечает её как выплаченную (заливка зелёным).</p>
+    <p class="foot-note">Суммы по менеджерам, РОПу и ассистенту подтягиваются из калькулятора за выбранный месяц (синяя заливка; нужно, чтобы расчёт месяца был сохранён в калькуляторе). Любую сумму можно изменить вручную: поле станет жёлтым, а кнопка &laquo;&#8634;&raquo; вернёт значение из калькулятора. Остальные сотрудники вводятся вручную. Кнопка &laquo;&check;&raquo; рядом с суммой отмечает её как выплаченную (зелёная заливка). Правки и отметки сохраняются автоматически (и уходят в GitHub). Новый месяц создаётся по списку сотрудников прошлого месяца, без отметок о выплате.</p>
 
     <div class="presets" style="margin-top:18px;">
       <p>История ведомостей</p>
       <div id="ved-history-list"></div>
-      <button class="add-btn" id="ved-save-calc-btn" style="width:100%; margin-top:6px;">Сохранить ведомость за месяц</button>
+      <button class="add-btn" id="ved-save-calc-btn" style="width:100%; margin-top:6px;">Сохранить ведомость за месяц (и так сохраняется автоматически)</button>
     </div>
   </div>
 </div>
@@ -1389,15 +1399,24 @@ render();
 // ---------- Переключение вкладок ----------
 
 const TAB_IDS = ['up', 'wb', 'oz', 'ym', 'rop', 'as', 'ved'];
-document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab-btn[data-tab]').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    TAB_IDS.forEach(id => {
-      const el = document.getElementById('tab-' + id);
-      if (el) el.style.display = btn.dataset.tab === id ? 'grid' : 'none';
-    });
+let lastCalcTab = 'wb';
+function showTab(id) {
+  const isVed = id === 'ved';
+  if (!isVed) lastCalcTab = id;
+  document.querySelectorAll('.main-btn').forEach(b => b.classList.toggle('active', b.dataset.main === (isVed ? 'ved' : 'calc')));
+  document.getElementById('calc-subtabs').style.display = isVed ? 'none' : 'flex';
+  document.querySelectorAll('.tab-btn[data-tab]').forEach(b => b.classList.toggle('active', !isVed && b.dataset.tab === id));
+  TAB_IDS.forEach(t => {
+    const el = document.getElementById('tab-' + t);
+    if (el) el.style.display = t === id ? 'grid' : 'none';
   });
+  if (isVed && typeof vedRender === 'function') vedRender();
+}
+document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
+  btn.addEventListener('click', () => showTab(btn.dataset.tab));
+});
+document.querySelectorAll('.main-btn').forEach(btn => {
+  btn.addEventListener('click', () => showTab(btn.dataset.main === 'ved' ? 'ved' : lastCalcTab));
 });
 
 // ---------- ОЗОН: тарифная сетка (KPI 2025, действует с окт. 2025) ----------
@@ -2498,33 +2517,111 @@ function vedNewRow(data) {
   return Object.assign({
     id: vedRowId, name: '', bank: '', method: '', premium: false, source: null,
     advOf: '', advNeof: '', salOf: '', salNeof: '',
-    paid: {advOf: false, advNeof: false, salOf: false, salNeof: false},
-  }, data || {}, {paid: Object.assign({advOf: false, advNeof: false, salOf: false, salNeof: false}, (data && data.paid) || {})});
+  }, data || {}, {
+    paid: Object.assign({advOf: false, advNeof: false, salOf: false, salNeof: false}, (data && data.paid) || {}),
+    ovr: Object.assign({}, (data && data.ovr) || {}),
+  });
 }
 
 function vedAddRow(data) {
   vedRows.push(vedNewRow(data));
   vedRender();
+  vedPersist();
 }
 
 const vedMonthInput = document.getElementById('ved-period-month');
 const vedRowsBody = document.getElementById('ved-rows-body');
 
-function vedMoneyCell(tr, row, field, autoValue, isAuto) {
+const VED_FIELDS = ['advOf', 'advNeof', 'salOf', 'salNeof'];
+
+// эффективное значение поля: ручная правка → иначе значение из калькулятора → иначе ручной ввод строки
+function vedEffective(row, ym) {
+  const auto = row.source ? vedGetAutoData(row.source, ym) : null;
+  const res = {};
+  VED_FIELDS.forEach(f => {
+    const autoVal = auto && auto[f] !== undefined ? auto[f] : undefined;
+    const hasAuto = autoVal !== undefined;
+    const ov = row.ovr ? row.ovr[f] : undefined;
+    const overridden = hasAuto && ov !== undefined && ov !== '' && ov !== null;
+    res[f] = {hasAuto, auto: autoVal, overridden, value: overridden ? ov : (hasAuto ? autoVal : row[f])};
+  });
+  return res;
+}
+
+let vedPersistTimer = null;
+let vedPersistYm = null;
+function vedSerializeRows() {
+  return vedRows.map(r => ({
+    name: r.name, bank: r.bank, method: r.method, premium: r.premium, source: r.source,
+    advOf: r.advOf, advNeof: r.advNeof, salOf: r.salOf, salNeof: r.salNeof, paid: r.paid, ovr: r.ovr,
+  }));
+}
+function vedPersistNow() {
+  if (vedPersistYm === null) return;
+  const hist = vedLoadHistoryRaw();
+  hist[vedPersistYm] = {roster: vedSerializeRows()};
+  vedSaveHistoryRaw(hist);
+  vedPersistYm = null;
+  vedRenderHistory();
+}
+// автосохранение ведомости (ручные правки и отметки «выплачено») за текущий месяц
+function vedPersist() {
+  vedPersistYm = vedMonthInput.value;
+  clearTimeout(vedPersistTimer);
+  vedPersistTimer = setTimeout(vedPersistNow, 400);
+}
+function vedFlush() {
+  clearTimeout(vedPersistTimer);
+  vedPersistNow();
+}
+
+function vedUpdateTotals() {
+  const ym = vedMonthInput.value;
+  const sum = {advOf: 0, advNeof: 0, salOf: 0, salNeof: 0};
+  vedRows.forEach(row => {
+    const e = vedEffective(row, ym);
+    VED_FIELDS.forEach(f => { sum[f] += parseFloat(e[f].value) || 0; });
+  });
+  document.getElementById('ved-total-adv-of').textContent = fmt(sum.advOf);
+  document.getElementById('ved-total-adv-neof').textContent = fmt(sum.advNeof);
+  document.getElementById('ved-total-sal-of').textContent = fmt(sum.salOf);
+  document.getElementById('ved-total-sal-neof').textContent = fmt(sum.salNeof);
+}
+
+function vedMoneyCell(tr, row, field, eff) {
   const td = document.createElement('td');
   const wrap = document.createElement('div');
   wrap.className = 'ved-cell';
 
-  if (isAuto) {
-    const span = document.createElement('span');
-    span.textContent = fmt(autoValue || 0);
-    wrap.appendChild(span);
-  } else {
-    const input = document.createElement('input');
-    input.type = 'number'; input.value = row[field]; input.placeholder = '0';
-    input.addEventListener('input', e => { row[field] = e.target.value; vedRender(); });
-    wrap.appendChild(input);
+  const input = document.createElement('input');
+  input.type = 'number'; input.placeholder = '0';
+  const shown = eff.hasAuto ? Math.round(parseFloat(eff.value) || 0) : eff.value;
+  input.value = eff.hasAuto && !eff.overridden ? Math.round(parseFloat(eff.auto) || 0) : shown;
+  const reset = document.createElement('button');
+  reset.className = 'ved-reset'; reset.textContent = '↺';
+  reset.title = 'Вернуть значение из калькулятора';
+  function paint() {
+    const e = vedEffective(row, vedMonthInput.value)[field];
+    input.classList.toggle('ved-auto', e.hasAuto && !e.overridden);
+    input.classList.toggle('ved-ovr', e.overridden);
+    input.title = e.hasAuto ? (e.overridden ? 'Изменено вручную. Калькулятор: ' + Math.round(parseFloat(e.auto) || 0) + ' ₽' : 'Из калькулятора') : '';
+    reset.classList.toggle('on', e.overridden);
   }
+  input.addEventListener('input', () => {
+    const v = input.value;
+    if (eff.hasAuto) {
+      const autoNow = vedEffective(row, vedMonthInput.value)[field].auto;
+      if (v === '' || Math.abs((parseFloat(v) || 0) - (parseFloat(autoNow) || 0)) < 0.5) delete row.ovr[field];
+      else row.ovr[field] = v;
+    } else {
+      row[field] = v;
+    }
+    paint(); vedUpdateTotals(); vedPersist();
+  });
+  reset.addEventListener('click', () => { delete row.ovr[field]; vedRender(); vedPersist(); });
+  paint();
+  wrap.appendChild(input);
+  wrap.appendChild(reset);
 
   const toggle = document.createElement('button');
   toggle.className = 'ved-paid-toggle';
@@ -2532,7 +2629,8 @@ function vedMoneyCell(tr, row, field, autoValue, isAuto) {
   toggle.title = 'Отметить как выплаченное';
   toggle.addEventListener('click', () => {
     row.paid[field] = !row.paid[field];
-    vedRender();
+    td.classList.toggle('ved-paid', !!row.paid[field]);
+    vedPersist();
   });
   wrap.appendChild(toggle);
 
@@ -2543,69 +2641,46 @@ function vedMoneyCell(tr, row, field, autoValue, isAuto) {
 
 function vedRender() {
   vedRowsBody.innerHTML = '';
-  let sumAdvOf = 0, sumAdvNeof = 0, sumSalOf = 0, sumSalNeof = 0;
   const ym = vedMonthInput.value;
 
   vedRows.forEach(row => {
-    let advOf = row.advOf, advNeof = row.advNeof, salOf = row.salOf, salNeof = row.salNeof;
-    let isAuto = false;
-    let isAutoOfficial = false;
-    if (row.source) {
-      const auto = vedGetAutoData(row.source, ym);
-      if (auto) {
-        advNeof = auto.advNeof;
-        salNeof = auto.salNeof;
-        salOf = auto.salOf;
-        isAuto = true;
-        if (auto.advOf !== undefined) {
-          advOf = auto.advOf;
-          isAutoOfficial = true;
-        }
-      }
-    }
-    sumAdvOf += parseFloat(advOf) || 0;
-    sumAdvNeof += parseFloat(advNeof) || 0;
-    sumSalOf += parseFloat(salOf) || 0;
-    sumSalNeof += parseFloat(salNeof) || 0;
-
+    const eff = vedEffective(row, ym);
+    const anyAuto = VED_FIELDS.some(f => eff[f].hasAuto);
     const tr = document.createElement('tr');
 
     const tdName = document.createElement('td');
     const nameInput = document.createElement('input');
     nameInput.type = 'text'; nameInput.value = row.name; nameInput.placeholder = 'ФИО';
-    nameInput.addEventListener('input', e => { row.name = e.target.value; });
+    nameInput.addEventListener('input', e => { row.name = e.target.value; vedPersist(); });
     tdName.appendChild(nameInput);
     if (row.source) {
       const badge = document.createElement('span');
       badge.className = 'ved-source-badge';
-      badge.textContent = VED_SOURCE_LABEL[row.source] + (isAuto ? '' : ' · нет данных');
+      badge.textContent = VED_SOURCE_LABEL[row.source] + (anyAuto ? '' : ' · нет данных');
       tdName.appendChild(badge);
     }
     tr.appendChild(tdName);
 
-    vedMoneyCell(tr, row, 'advOf', advOf, isAutoOfficial);
-    vedMoneyCell(tr, row, 'advNeof', advNeof, isAuto);
-    vedMoneyCell(tr, row, 'salOf', salOf, isAutoOfficial);
-    vedMoneyCell(tr, row, 'salNeof', salNeof, isAuto);
+    VED_FIELDS.forEach(f => vedMoneyCell(tr, row, f, eff[f]));
 
     const tdBank = document.createElement('td');
     const bankInput = document.createElement('input');
     bankInput.type = 'text'; bankInput.value = row.bank; bankInput.placeholder = 'банк';
-    bankInput.addEventListener('input', e => { row.bank = e.target.value; });
+    bankInput.addEventListener('input', e => { row.bank = e.target.value; vedPersist(); });
     tdBank.appendChild(bankInput);
     tr.appendChild(tdBank);
 
     const tdMethod = document.createElement('td');
     const methodInput = document.createElement('input');
     methodInput.type = 'text'; methodInput.value = row.method; methodInput.placeholder = '';
-    methodInput.addEventListener('input', e => { row.method = e.target.value; });
+    methodInput.addEventListener('input', e => { row.method = e.target.value; vedPersist(); });
     tdMethod.appendChild(methodInput);
     tr.appendChild(tdMethod);
 
     const tdPremium = document.createElement('td');
     const premiumInput = document.createElement('input');
     premiumInput.type = 'checkbox'; premiumInput.checked = !!row.premium;
-    premiumInput.addEventListener('change', e => { row.premium = e.target.checked; });
+    premiumInput.addEventListener('change', e => { row.premium = e.target.checked; vedPersist(); });
     tdPremium.appendChild(premiumInput);
     tr.appendChild(tdPremium);
 
@@ -2615,21 +2690,32 @@ function vedRender() {
     removeBtn.addEventListener('click', () => {
       vedRows = vedRows.filter(x => x.id !== row.id);
       vedRender();
+      vedPersist();
     });
     tdRemove.appendChild(removeBtn);
     tr.appendChild(tdRemove);
 
     vedRowsBody.appendChild(tr);
   });
+  vedUpdateTotals();
+}
 
-  document.getElementById('ved-total-adv-of').textContent = fmt(sumAdvOf);
-  document.getElementById('ved-total-adv-neof').textContent = fmt(sumAdvNeof);
-  document.getElementById('ved-total-sal-of').textContent = fmt(sumSalOf);
-  document.getElementById('ved-total-sal-neof').textContent = fmt(sumSalNeof);
+// загрузка ведомости выбранного месяца: сохранённая, иначе шаблон из ближайшего прошлого месяца (без отметок и правок)
+function vedLoadMonth(ym) {
+  const hist = vedLoadHistoryRaw();
+  if (hist[ym]) {
+    vedRows = hist[ym].roster.map(r => vedNewRow(r));
+  } else {
+    const keys = Object.keys(hist).sort();
+    const prev = keys.filter(k => k < ym).pop() || keys[0];
+    const base = prev ? hist[prev].roster : vedDefaultRoster();
+    vedRows = base.map(r => vedNewRow(Object.assign({}, r, {paid: undefined, ovr: {}})));
+  }
+  vedRender();
 }
 
 document.getElementById('ved-add-row').addEventListener('click', () => vedAddRow());
-vedMonthInput.addEventListener('input', vedRender);
+vedMonthInput.addEventListener('input', () => { vedFlush(); vedLoadMonth(vedMonthInput.value); });
 
 // ---------- ВЕДОМОСТЬ: история ----------
 
@@ -2661,12 +2747,8 @@ function vedSeedHistoryIfEmpty() { return; }
 function vedComputeMonthTotal(entry, ym) {
   let salarySum = 0;
   entry.roster.forEach(row => {
-    if (row.source) {
-      const auto = vedGetAutoData(row.source, ym);
-      salarySum += auto ? ((auto.salNeof || 0) + (auto.salOf || 0)) : 0;
-    } else {
-      salarySum += (parseFloat(row.salNeof) || 0) + (parseFloat(row.salOf) || 0);
-    }
+    const e = vedEffective(Object.assign({ovr: {}}, row), ym);
+    salarySum += (parseFloat(e.salOf.value) || 0) + (parseFloat(e.salNeof.value) || 0);
   });
   return salarySum;
 }
@@ -2715,9 +2797,9 @@ function vedRenderHistory() {
     item.appendChild(removeBtn);
 
     item.addEventListener('click', () => {
+      vedFlush();
       vedMonthInput.value = ym;
-      vedRows = entry.roster.map(r => vedNewRow(r));
-      vedRender();
+      vedLoadMonth(ym);
     });
 
     container.appendChild(item);
@@ -2727,12 +2809,7 @@ function vedRenderHistory() {
 document.getElementById('ved-save-calc-btn').addEventListener('click', () => {
   const ym = vedMonthInput.value;
   const hist = vedLoadHistoryRaw();
-  hist[ym] = {
-    roster: vedRows.map(r => ({
-      name: r.name, bank: r.bank, method: r.method, premium: r.premium, source: r.source,
-      advOf: r.advOf, advNeof: r.advNeof, salOf: r.salOf, salNeof: r.salNeof, paid: r.paid,
-    })),
-  };
+  hist[ym] = {roster: vedSerializeRows()};
   vedSaveHistoryRaw(hist);
   vedRenderHistory();
   const btn = document.getElementById('ved-save-calc-btn');
