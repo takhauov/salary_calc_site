@@ -216,7 +216,10 @@
   td input[type=checkbox] { width: 18px; height: 18px; }
   .col-wide { min-width: 120px; }
   .ved-cell { display:flex; align-items:center; gap:4px; }
-  .ved-cell input[type=number] { width: 90px; }
+  .ved-cell input[type=number] { width: 74px; padding-left:6px; padding-right:4px; }
+  #ved-rows-tbl th.col-num, #ved-rows-tbl td { padding-left:4px; padding-right:4px; }
+  #ved-rows-tbl th.col-num { width: auto; }
+  #ved-rows-tbl td input[type=text] { width: 100%; min-width: 70px; }
   .ved-paid-toggle {
     border: 1px solid var(--line); background:#fff; border-radius:5px; width:22px; height:22px;
     font-size:12px; line-height:1; cursor:pointer; color: var(--muted); flex-shrink:0;
@@ -778,7 +781,7 @@
           <th class="col-num">Банк</th>
           <th class="col-num">Способ оплаты</th>
           <th class="col-num">Премия, ₽</th>
-          <th class="col-num">Итого выплачено, ₽</th>
+          <th class="col-num" style="width:96px;white-space:normal;text-align:right">Итого выплачено, ₽</th>
           <th></th>
         </tr>
       </thead>
@@ -2688,7 +2691,7 @@ function vedRender() {
     }
     tr.appendChild(tdName);
 
-    VED_FIELDS.forEach(f => vedMoneyCell(tr, row, f, eff[f]));
+    VED_FIELDS.filter(f => f !== 'prem').forEach(f => vedMoneyCell(tr, row, f, eff[f]));
 
     const tdBank = document.createElement('td');
     const bankInput = document.createElement('input');
