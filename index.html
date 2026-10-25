@@ -211,6 +211,7 @@
     display:inline-block; padding: 2px 7px; border-radius: 6px; font-size: 11px; font-weight: 600;
     background: var(--accent-soft); color: var(--accent); margin-left: 6px;
   }
+  .ved-paid-sum { font-weight: 700; white-space: nowrap; text-align: right; }
   .ved-total-row td { font-weight: 700; border-top: 2px solid var(--ink); }
   td input[type=checkbox] { width: 18px; height: 18px; }
   .col-wide { min-width: 120px; }
@@ -777,6 +778,7 @@
           <th class="col-num">Банк</th>
           <th class="col-num">Способ оплаты</th>
           <th class="col-num">Премия</th>
+          <th class="col-num">Итого выплачено, ₽</th>
           <th></th>
         </tr>
       </thead>
@@ -788,7 +790,9 @@
           <td id="ved-total-adv-neof">0 ₽</td>
           <td id="ved-total-sal-of">0 ₽</td>
           <td id="ved-total-sal-neof">0 ₽</td>
-          <td colspan="4"></td>
+          <td colspan="3"></td>
+          <td id="ved-total-paid">0 ₽</td>
+          <td></td>
         </tr>
       </tfoot>
     </table>
@@ -2585,6 +2589,11 @@ function vedFlush() {
   vedPersistNow();
 }
 
+function vedPaidSum(row, ym) {
+  const e = vedEffective(row, ym);
+  return VED_FIELDS.reduce((t, f) => t + (row.paid && row.paid[f] ? (parseFloat(e[f].value) || 0) : 0), 0);
+}
+
 function vedUpdateTotals() {
   const ym = vedMonthInput.value;
   const sum = {advOf: 0, advNeof: 0, salOf: 0, salNeof: 0};
@@ -2592,6 +2601,9 @@ function vedUpdateTotals() {
     const e = vedEffective(row, ym);
     VED_FIELDS.forEach(f => { sum[f] += parseFloat(e[f].value) || 0; });
   });
+  let paidAll = 0;
+  vedRows.forEach(row => { const p = vedPaidSum(row, ym); paidAll += p; if (row._paidCell) row._paidCell.textContent = p ? fmt(p) : '—'; });
+  document.getElementById('ved-total-paid').textContent = fmt(paidAll);
   document.getElementById('ved-total-adv-of').textContent = fmt(sum.advOf);
   document.getElementById('ved-total-adv-neof').textContent = fmt(sum.advNeof);
   document.getElementById('ved-total-sal-of').textContent = fmt(sum.salOf);
@@ -2642,6 +2654,7 @@ function vedMoneyCell(tr, row, field, eff) {
   toggle.addEventListener('click', () => {
     row.paid[field] = !row.paid[field];
     td.classList.toggle('ved-paid', !!row.paid[field]);
+    vedUpdateTotals();
     vedPersist();
   });
   wrap.appendChild(toggle);
@@ -2695,6 +2708,11 @@ function vedRender() {
     premiumInput.addEventListener('change', e => { row.premium = e.target.checked; vedPersist(); });
     tdPremium.appendChild(premiumInput);
     tr.appendChild(tdPremium);
+
+    const tdPaid = document.createElement('td');
+    tdPaid.className = 'ved-paid-sum';
+    row._paidCell = tdPaid;
+    tr.appendChild(tdPaid);
 
     const tdRemove = document.createElement('td');
     const removeBtn = document.createElement('button');
