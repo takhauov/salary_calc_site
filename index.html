@@ -779,7 +779,6 @@
           <th class="col-num">ЗП оф., ₽</th>
           <th class="col-num">ЗП неоф., ₽</th>
           <th class="col-num">Банк</th>
-          <th class="col-num">Способ оплаты</th>
           <th class="col-num">Премия, ₽</th>
           <th class="col-num" style="width:96px;white-space:normal;text-align:right">Итого выплачено, ₽</th>
           <th></th>
@@ -793,7 +792,7 @@
           <td id="ved-total-adv-neof">0 ₽</td>
           <td id="ved-total-sal-of">0 ₽</td>
           <td id="ved-total-sal-neof">0 ₽</td>
-          <td colspan="2"></td>
+          <td></td>
           <td id="ved-total-prem">0 ₽</td>
           <td id="ved-total-paid">0 ₽</td>
           <td></td>
@@ -2523,7 +2522,7 @@ let vedRowId = 0;
 function vedNewRow(data) {
   vedRowId += 1;
   return Object.assign({
-    id: vedRowId, name: '', bank: '', method: '', premium: false, source: null,
+    id: vedRowId, name: '', bank: '', source: null,
     advOf: '', advNeof: '', salOf: '', salNeof: '', prem: '',
   }, data || {}, {
     paid: Object.assign({advOf: false, advNeof: false, salOf: false, salNeof: false, prem: false}, (data && data.paid) || {}),
@@ -2570,7 +2569,7 @@ let vedPersistTimer = null;
 let vedPersistYm = null;
 function vedSerializeRows() {
   return vedRows.map(r => ({
-    name: r.name, bank: r.bank, method: r.method, source: r.source,
+    name: r.name, bank: r.bank, source: r.source,
     advOf: r.advOf, advNeof: r.advNeof, salOf: r.salOf, salNeof: r.salNeof, prem: r.prem, paid: r.paid, ovr: r.ovr,
   }));
 }
@@ -2699,13 +2698,6 @@ function vedRender() {
     bankInput.addEventListener('input', e => { row.bank = e.target.value; vedPersist(); });
     tdBank.appendChild(bankInput);
     tr.appendChild(tdBank);
-
-    const tdMethod = document.createElement('td');
-    const methodInput = document.createElement('input');
-    methodInput.type = 'text'; methodInput.value = row.method; methodInput.placeholder = '';
-    methodInput.addEventListener('input', e => { row.method = e.target.value; vedPersist(); });
-    tdMethod.appendChild(methodInput);
-    tr.appendChild(tdMethod);
 
     vedMoneyCell(tr, row, 'prem', eff.prem);
 
