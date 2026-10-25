@@ -2778,7 +2778,7 @@ function vedComputeMonthTotal(entry, ym) {
   let salarySum = 0;
   entry.roster.forEach(row => {
     const e = vedEffective(Object.assign({ovr: {}}, row), ym);
-    salarySum += (parseFloat(e.salOf.value) || 0) + (parseFloat(e.salNeof.value) || 0);
+    salarySum += VED_FIELDS.reduce((t, f) => t + (parseFloat(e[f].value) || 0), 0);
   });
   return salarySum;
 }
@@ -2808,7 +2808,7 @@ function vedRenderHistory() {
     monthSpan.textContent = monthLabel(ym);
     const totalSpan = document.createElement('span');
     totalSpan.className = 'hist-total';
-    totalSpan.textContent = fmt(total) + ' всего ЗП';
+    totalSpan.textContent = fmt(total) + ' ФОТ';
     info.appendChild(monthSpan);
     info.appendChild(totalSpan);
     item.appendChild(info);
