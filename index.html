@@ -2549,7 +2549,9 @@ function vedEffective(row, ym) {
       isDefault = true;
     }
     const hasAuto = autoVal !== undefined;
-    const ov = row.ovr ? row.ovr[f] : undefined;
+    let ov = row.ovr ? row.ovr[f] : undefined;
+    // официальный аванс вводится вручную: введённое значение главнее значения из расчёта
+    if ((ov === undefined || ov === '' || ov === null) && f === 'advOf' && row[f] !== '' && row[f] !== undefined && row[f] !== null) ov = row[f];
     const overridden = hasAuto && ov !== undefined && ov !== '' && ov !== null;
     res[f] = {hasAuto, isDefault, auto: autoVal, overridden, value: overridden ? ov : (hasAuto ? autoVal : row[f])};
   });
@@ -2620,6 +2622,7 @@ function vedMoneyCell(tr, row, field, eff) {
     const v = input.value;
     if (eff.hasAuto) {
       const autoNow = vedEffective(row, vedMonthInput.value)[field].auto;
+      row[field] = '';
       if (v === '' || Math.abs((parseFloat(v) || 0) - (parseFloat(autoNow) || 0)) < 0.5) delete row.ovr[field];
       else row.ovr[field] = v;
     } else {
@@ -2627,7 +2630,7 @@ function vedMoneyCell(tr, row, field, eff) {
     }
     paint(); vedUpdateTotals(); vedPersist();
   });
-  reset.addEventListener('click', () => { delete row.ovr[field]; vedRender(); vedPersist(); });
+  reset.addEventListener('click', () => { delete row.ovr[field]; row[field] = ''; vedRender(); vedPersist(); });
   paint();
   wrap.appendChild(input);
   wrap.appendChild(reset);
