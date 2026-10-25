@@ -2534,16 +2534,24 @@ const vedRowsBody = document.getElementById('ved-rows-body');
 
 const VED_FIELDS = ['advOf', 'advNeof', 'salOf', 'salNeof'];
 
-// эффективное значение поля: ручная правка → иначе значение из калькулятора → иначе ручной ввод строки
+// стандартные неофициальные авансы (не меняются из месяца в месяц); подставляются, если за месяц нет расчёта
+const VED_DEFAULT_ADV_NEOF = {wb: 20000, oz: 11000, ym: 10000, rop: 40000, as: 11000};
+
+// эффективное значение поля: ручная правка → иначе значение из калькулятора (или стандартный аванс) → иначе ручной ввод строки
 function vedEffective(row, ym) {
   const auto = row.source ? vedGetAutoData(row.source, ym) : null;
   const res = {};
   VED_FIELDS.forEach(f => {
-    const autoVal = auto && auto[f] !== undefined ? auto[f] : undefined;
+    let autoVal = auto && auto[f] !== undefined ? auto[f] : undefined;
+    let isDefault = false;
+    if (autoVal === undefined && f === 'advNeof' && row.source && VED_DEFAULT_ADV_NEOF[row.source] !== undefined) {
+      autoVal = VED_DEFAULT_ADV_NEOF[row.source];
+      isDefault = true;
+    }
     const hasAuto = autoVal !== undefined;
     const ov = row.ovr ? row.ovr[f] : undefined;
     const overridden = hasAuto && ov !== undefined && ov !== '' && ov !== null;
-    res[f] = {hasAuto, auto: autoVal, overridden, value: overridden ? ov : (hasAuto ? autoVal : row[f])};
+    res[f] = {hasAuto, isDefault, auto: autoVal, overridden, value: overridden ? ov : (hasAuto ? autoVal : row[f])};
   });
   return res;
 }
@@ -2604,7 +2612,8 @@ function vedMoneyCell(tr, row, field, eff) {
     const e = vedEffective(row, vedMonthInput.value)[field];
     input.classList.toggle('ved-auto', e.hasAuto && !e.overridden);
     input.classList.toggle('ved-ovr', e.overridden);
-    input.title = e.hasAuto ? (e.overridden ? 'Изменено вручную. Калькулятор: ' + Math.round(parseFloat(e.auto) || 0) + ' ₽' : 'Из калькулятора') : '';
+    const src = e.isDefault ? 'Стандартный аванс' : 'Калькулятор';
+    input.title = e.hasAuto ? (e.overridden ? 'Изменено вручную. ' + src + ': ' + Math.round(parseFloat(e.auto) || 0) + ' ₽' : 'Из: ' + src.toLowerCase()) : '';
     reset.classList.toggle('on', e.overridden);
   }
   input.addEventListener('input', () => {
@@ -2645,7 +2654,7 @@ function vedRender() {
 
   vedRows.forEach(row => {
     const eff = vedEffective(row, ym);
-    const anyAuto = VED_FIELDS.some(f => eff[f].hasAuto);
+    const anyAuto = VED_FIELDS.some(f => eff[f].hasAuto && !eff[f].isDefault);
     const tr = document.createElement('tr');
 
     const tdName = document.createElement('td');
