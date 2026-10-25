@@ -777,7 +777,7 @@
           <th class="col-num">ЗП неоф., ₽</th>
           <th class="col-num">Банк</th>
           <th class="col-num">Способ оплаты</th>
-          <th class="col-num">Премия</th>
+          <th class="col-num">Премия, ₽</th>
           <th class="col-num">Итого выплачено, ₽</th>
           <th></th>
         </tr>
@@ -790,7 +790,8 @@
           <td id="ved-total-adv-neof">0 ₽</td>
           <td id="ved-total-sal-of">0 ₽</td>
           <td id="ved-total-sal-neof">0 ₽</td>
-          <td colspan="3"></td>
+          <td colspan="2"></td>
+          <td id="ved-total-prem">0 ₽</td>
           <td id="ved-total-paid">0 ₽</td>
           <td></td>
         </tr>
@@ -2485,7 +2486,7 @@ function vedGetAutoData(source, ym) {
     const loanDeduction = Math.min(5000, loanRemainingNow);
     const officialAdvance = h.officialAdvance || 0;
     const officialSalary = h.officialSalary || 0;
-    return {advOf: officialAdvance, advNeof: h.advance, salNeof: totalAccrued - officialAdvance - officialSalary - h.advance - loanDeduction, salOf: officialSalary};
+    return {advOf: officialAdvance, advNeof: h.advance, salNeof: totalAccrued - (h.extra || 0) - officialAdvance - officialSalary - h.advance - loanDeduction, salOf: officialSalary, prem: h.extra || 0};
   }
   if (source === 'ym') {
     const h = ymLoadHistoryRaw()[ym];
@@ -2495,7 +2496,7 @@ function vedGetAutoData(source, ym) {
     const totalAccrued = h.oklad + bonusSum + (h.extra || 0);
     const officialAdvance = h.officialAdvance || 0;
     const officialSalary = h.officialSalary || 0;
-    return {advOf: officialAdvance, advNeof: h.advance, salNeof: totalAccrued - officialAdvance - officialSalary - h.advance, salOf: officialSalary};
+    return {advOf: officialAdvance, advNeof: h.advance, salNeof: totalAccrued - (h.extra || 0) - officialAdvance - officialSalary - h.advance, salOf: officialSalary, prem: h.extra || 0};
   }
   if (source === 'as') {
     return asGetAutoData(ym);
@@ -2506,7 +2507,7 @@ function vedGetAutoData(source, ym) {
     let marginSum = 0;
     ROP_DIRECTIONS.forEach(dir => { marginSum += parseFloat(h.margins[dir]) || 0; });
     const premium = marginSum * 0.03;
-    return {advNeof: h.advance, salNeof: h.oklad - h.advance + premium, salOf: 0};
+    return {advNeof: h.advance, salNeof: h.oklad - h.advance, salOf: 0, prem: premium};
   }
   return null;
 }
@@ -2520,9 +2521,9 @@ function vedNewRow(data) {
   vedRowId += 1;
   return Object.assign({
     id: vedRowId, name: '', bank: '', method: '', premium: false, source: null,
-    advOf: '', advNeof: '', salOf: '', salNeof: '',
+    advOf: '', advNeof: '', salOf: '', salNeof: '', prem: '',
   }, data || {}, {
-    paid: Object.assign({advOf: false, advNeof: false, salOf: false, salNeof: false}, (data && data.paid) || {}),
+    paid: Object.assign({advOf: false, advNeof: false, salOf: false, salNeof: false, prem: false}, (data && data.paid) || {}),
     ovr: Object.assign({}, (data && data.ovr) || {}),
   });
 }
@@ -2536,7 +2537,7 @@ function vedAddRow(data) {
 const vedMonthInput = document.getElementById('ved-period-month');
 const vedRowsBody = document.getElementById('ved-rows-body');
 
-const VED_FIELDS = ['advOf', 'advNeof', 'salOf', 'salNeof'];
+const VED_FIELDS = ['advOf', 'advNeof', 'salOf', 'salNeof', 'prem'];
 
 // стандартные неофициальные авансы (не меняются из месяца в месяц); подставляются, если за месяц нет расчёта
 const VED_DEFAULT_ADV_NEOF = {wb: 20000, oz: 11000, ym: 10000, rop: 40000, as: 11000};
@@ -2566,8 +2567,8 @@ let vedPersistTimer = null;
 let vedPersistYm = null;
 function vedSerializeRows() {
   return vedRows.map(r => ({
-    name: r.name, bank: r.bank, method: r.method, premium: r.premium, source: r.source,
-    advOf: r.advOf, advNeof: r.advNeof, salOf: r.salOf, salNeof: r.salNeof, paid: r.paid, ovr: r.ovr,
+    name: r.name, bank: r.bank, method: r.method, source: r.source,
+    advOf: r.advOf, advNeof: r.advNeof, salOf: r.salOf, salNeof: r.salNeof, prem: r.prem, paid: r.paid, ovr: r.ovr,
   }));
 }
 function vedPersistNow() {
@@ -2596,7 +2597,7 @@ function vedPaidSum(row, ym) {
 
 function vedUpdateTotals() {
   const ym = vedMonthInput.value;
-  const sum = {advOf: 0, advNeof: 0, salOf: 0, salNeof: 0};
+  const sum = {advOf: 0, advNeof: 0, salOf: 0, salNeof: 0, prem: 0};
   vedRows.forEach(row => {
     const e = vedEffective(row, ym);
     VED_FIELDS.forEach(f => { sum[f] += parseFloat(e[f].value) || 0; });
@@ -2608,6 +2609,7 @@ function vedUpdateTotals() {
   document.getElementById('ved-total-adv-neof').textContent = fmt(sum.advNeof);
   document.getElementById('ved-total-sal-of').textContent = fmt(sum.salOf);
   document.getElementById('ved-total-sal-neof').textContent = fmt(sum.salNeof);
+  document.getElementById('ved-total-prem').textContent = fmt(sum.prem);
 }
 
 function vedMoneyCell(tr, row, field, eff) {
@@ -2702,12 +2704,7 @@ function vedRender() {
     tdMethod.appendChild(methodInput);
     tr.appendChild(tdMethod);
 
-    const tdPremium = document.createElement('td');
-    const premiumInput = document.createElement('input');
-    premiumInput.type = 'checkbox'; premiumInput.checked = !!row.premium;
-    premiumInput.addEventListener('change', e => { row.premium = e.target.checked; vedPersist(); });
-    tdPremium.appendChild(premiumInput);
-    tr.appendChild(tdPremium);
+    vedMoneyCell(tr, row, 'prem', eff.prem);
 
     const tdPaid = document.createElement('td');
     tdPaid.className = 'ved-paid-sum';
@@ -2739,7 +2736,7 @@ function vedLoadMonth(ym) {
     const keys = Object.keys(hist).sort();
     const prev = keys.filter(k => k < ym).pop() || keys[0];
     const base = prev ? hist[prev].roster : vedDefaultRoster();
-    vedRows = base.map(r => vedNewRow(Object.assign({}, r, {paid: undefined, ovr: {}})));
+    vedRows = base.map(r => vedNewRow(Object.assign({}, r, {paid: undefined, ovr: {}, prem: ''})));
   }
   vedRender();
 }
