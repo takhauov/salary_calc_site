@@ -155,5 +155,124 @@
     };
   }
 
-  return {parseWorkbook, parseArticles, parseGross, MONTHS};
+  // ---------- новый формат выгрузки (РАСК/ОДДС): один файл на все компании ----------
+  const PLATFORM = {'wildberries': 'wb', 'ozon': 'oz', 'яндекс маркет': 'ym'};
+
+  function parsePeriod(rows) {
+    for (let i = 0; i < Math.min(rows.length, 6); i++) {
+      const m = norm((rows[i] || [])[0]).match(/(\d{2})\.(\d{2})\.(\d{4})\s*[—–-]\s*(\d{2})\.(\d{2})\.(\d{4})/);
+      if (m) {
+        const from = m[3] + '-' + m[2] + '-' + m[1], to = m[6] + '-' + m[5] + '-' + m[4];
+        const sameMonth = from.slice(0, 7) === to.slice(0, 7);
+        let full = false;
+        if (sameMonth) {
+          const last = new Date(+m[6], +m[5], 0).getDate();
+          full = m[1] === '01' && +m[4] === last;
+        }
+        return {from, to, ym: sameMonth ? from.slice(0, 7) : '', full, label: m[1] + '.' + m[2] + '–' + m[4] + '.' + m[5] + '.' + m[6]};
+      }
+    }
+    return null;
+  }
+
+  // «По артикулам · Все компании»: шапка в две строки (группа + подзаголовок)
+  function parseMultiArticles(rows) {
+    let h = -1;
+    for (let i = 0; i < Math.min(rows.length, 12); i++) {
+      const r = (rows[i] || []).map(lower);
+      if (r.includes('площадка') && r.includes('компания')) { h = i; break; }
+    }
+    if (h < 0) return null;
+    const top = (rows[h] || []).map(norm), sub = (rows[h + 1] || []).map(norm);
+    let grp = '';
+    const cols = top.map((t, i) => { if (t) grp = t; return {group: grp, top: t, sub: sub[i] || ''}; });
+    const find = pred => cols.findIndex(pred);
+    const cPlat = find(c => lower(c.top) === 'площадка');
+    const cComp = find(c => lower(c.top) === 'компания');
+    const cArt = find(c => lower(c.top) === 'артикул продавца');
+    const cName = find(c => lower(c.top) === 'название');
+    const cUnits = find(c => lower(c.sub) === 'итого реализовано');
+    const cRev = find(c => lower(c.group).startsWith('до спп') && lower(c.sub) === 'реализация до спп');
+    const cProfit = find(c => lower(c.sub) === 'операционная прибыль');
+    const cAds = find(c => lower(c.group).startsWith('услуги площадки') && lower(c.sub) === 'реклама');
+    if (cArt < 0 || cRev < 0 || cProfit < 0) throw new Error('В файле «По артикулам» не нашёл столбцы «Артикул продавца», «Реализация до СПП» или «Операционная прибыль»');
+    const cabs = new Map();
+    for (let i = h + 2; i < rows.length; i++) {
+      const r = rows[i] || [];
+      const plat = lower(r[cPlat]), comp = norm(r[cComp]), art = norm(r[cArt]);
+      if (!comp || !PLATFORM[plat]) continue;                    // «Итого» и пустые строки
+      if (!art || lower(art) === 'без артикула') continue;
+      const key = comp + '|' + plat;
+      const cab = cabs.get(key) || {entity: comp, market: PLATFORM[plat], map: new Map()};
+      cabs.set(key, cab);
+      const k = art.toLowerCase();
+      const cur = cab.map.get(k) || {key: k, name: art, profit: 0, revenue: 0, units: 0, ads: 0, title: ''};
+      cur.profit += num(r[cProfit]);
+      cur.revenue += num(r[cRev]);
+      if (cUnits >= 0) cur.units += num(r[cUnits]);
+      if (cAds >= 0) cur.ads += Math.abs(num(r[cAds]));
+      if (cName >= 0 && !cur.title) cur.title = norm(r[cName]);
+      cab.map.set(k, cur);
+    }
+    const out = [];
+    cabs.forEach(cab => {
+      const articles = Array.from(cab.map.values()).map(a => ({...a,
+        marginPct: a.revenue > 100 ? Math.round(a.profit / a.revenue * 10000) / 100 : 0}));
+      const totals = articles.reduce((t, a) => ({profit: t.profit + a.profit, revenue: t.revenue + a.revenue}), {profit: 0, revenue: 0});
+      if (Math.abs(totals.profit) < 1 && totals.revenue < 1) return;   // пустой кабинет (например, Мэлд трейдинг)
+      out.push({entity: cab.entity, market: cab.market, articles, totals, gross: {}});
+    });
+    return out;
+  }
+
+  // «ОПиУ — сводка по компаниям»: валовая маржа каждой компании за период
+  function parseOpiuSummary(rows) {
+    let h = -1;
+    for (let i = 0; i < Math.min(rows.length, 12); i++) {
+      const r = (rows[i] || []).map(lower);
+      if (r.includes('компания') && r.includes('валовая маржа')) { h = i; break; }
+    }
+    if (h < 0) return null;
+    const head = rows[h].map(lower);
+    const cComp = head.indexOf('компания'), cGross = head.indexOf('валовая маржа');
+    const cRev = head.findIndex(c => c.startsWith('реализация'));
+    const gross = {}, revenue = {};
+    for (let i = h + 1; i < rows.length; i++) {
+      const r = rows[i] || [];
+      const comp = norm(r[cComp]);
+      if (!comp || /^итого/i.test(comp) || typeof r[cGross] !== 'number') continue;
+      gross[comp] = r[cGross];
+      if (cRev >= 0) revenue[comp] = num(r[cRev]);
+    }
+    return {gross, revenue};
+  }
+
+  // Определяет формат файла: {kind: 'multi'|'opiu'|'cabinet', ...}
+  function parseAny(XLSX, data, fileName, opts) {
+    opts = opts || {};
+    const type = opts.type || 'array';
+    const meta = XLSX.read(data, {type, bookSheets: true});
+    const names = meta.SheetNames;
+    const sumName = names.find(n => lower(n) === 'сводка по компаниям');
+    if (sumName) {
+      const wb = XLSX.read(data, {type, sheets: [sumName]});
+      const rows = sheetRows(XLSX, wb, sumName);
+      const res = parseOpiuSummary(rows);
+      if (!res) throw new Error('На листе «Сводка по компаниям» не нашёл столбцы «Компания» и «Валовая маржа»');
+      return {kind: 'opiu', fileName, period: parsePeriod(rows), gross: res.gross, revenue: res.revenue};
+    }
+    const artName = findSheet(names, ARTICLE_SHEETS);
+    if (artName) {
+      const wb = XLSX.read(data, {type, sheets: [artName]});
+      const rows = sheetRows(XLSX, wb, artName);
+      const cabs = parseMultiArticles(rows);
+      if (cabs) return {kind: 'multi', fileName, period: parsePeriod(rows), cabinets: cabs};
+    }
+    const p = parseWorkbook(XLSX, data, fileName, opts);
+    p.kind = 'cabinet';
+    return p;
+  }
+
+  return {parseWorkbook, parseArticles, parseGross, parseAny, parseMultiArticles, parseOpiuSummary, parsePeriod, MONTHS};
+
 });

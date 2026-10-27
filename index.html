@@ -326,10 +326,10 @@
   <main>
     <div class="card" style="padding:18px 20px;">
       <h1>Загрузка отчётов</h1>
-      <p class="subtitle">Перетащите сюда экономические отчёты (.xlsm). Файлы никуда не отправляются: они читаются прямо в вашем браузере.</p>
+      <p class="subtitle">Перетащите сюда отчёты: старые экономические (.xlsm по каждому кабинету) или новые выгрузки .xlsx («По артикулам» по всем компаниям + «ОПиУ»). Файлы никуда не отправляются: они читаются прямо в вашем браузере.</p>
       <div class="field" style="max-width:240px;"><label for="up-month">Расчётный месяц</label><input type="month" id="up-month"></div>
       <p class="tariff-note" id="up-weeks-hint"></p>
-      <div class="up-drop" id="up-drop"><strong>Перетащите отчёты сюда</strong> или нажмите, чтобы выбрать<br><span style="font-size:12.5px;">WB, Озон, ЯМ — любое число файлов сразу, включая кабинеты ИП Тарасов и дополнительные</span></div>
+      <div class="up-drop" id="up-drop"><strong>Перетащите отчёты сюда</strong> или нажмите, чтобы выбрать<br><span style="font-size:12.5px;">любое число файлов сразу. Новый формат: «По артикулам» (прибыль по товарам) и «ОПиУ» (валовая маржа для РОП) за целый месяц</span></div>
       <input type="file" id="up-file-input" multiple accept=".xlsm,.xlsx" style="display:none;">
       <div id="up-status" class="tariff-note" style="background:none;padding:0;"></div>
       <div id="up-files"></div>
@@ -339,7 +339,7 @@
       <button class="up-btn" id="up-apply" disabled>Записать в расчёт</button>
       <button class="up-btn ghost" id="up-clear">Очистить список</button>
       <label style="font-size:13px;display:flex;gap:6px;align-items:center;"><input type="checkbox" id="up-replace"> полностью заменить строки месяца (по умолчанию строки, которых нет в загруженных файлах, остаются)</label>
-      <span class="tariff-note" style="background:none;padding:0;margin:0;">Перед загрузкой в Excel выберите нужные недели в срезе и сохраните файл — программа читает то, что сохранено в отчёте.</span>
+      <span class="tariff-note" style="background:none;padding:0;margin:0;">Старые отчёты: перед загрузкой выберите нужные недели в срезе Excel и сохраните файл. Новые выгрузки: укажите период — целый календарный месяц.</span>
     </div>
   </main>
 </div>

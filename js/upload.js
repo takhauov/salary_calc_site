@@ -96,6 +96,7 @@
     files: [],            // {id, name, parsed, role:{dir,feed}}
     planText: {wb: '', oz: '', ym: ''},
     planOverride: {wb: {}, oz: {}, ym: {}},
+    opiu: [],             // файлы ОПиУ: {id, name, period, gross:{компания: сумма}}
     nextId: 1,
   };
 
@@ -127,8 +128,8 @@
           if (Math.abs(a.profit) >= 10000 || a.revenue >= 50000) unmapped.push({file: f, article: a});
           return;
         }
-        const cur = lines.get(line) || {name: line, profit: 0, revenue: 0, units: 0, from: []};
-        cur.profit += a.profit; cur.revenue += a.revenue; cur.units += a.units;
+        const cur = lines.get(line) || {name: line, profit: 0, revenue: 0, units: 0, ads: 0, from: []};
+        cur.profit += a.profit; cur.revenue += a.revenue; cur.units += a.units; cur.ads += a.ads || 0;
         cur.from.push(a.name);
         lines.set(line, cur);
       });
@@ -148,7 +149,7 @@
       }
       let catOverride = null;
       if (ex && ex.rows) { const old = ex.rows.find(r => normName(r.name) === key); if (old) catOverride = old.catOverride || null; }
-      return {name: l.name, profit: Math.round(l.profit * 100) / 100, plan, margin, catOverride, from: l.from, planSrc, drr: ''};
+      return {name: l.name, profit: Math.round(l.profit * 100) / 100, plan, margin, catOverride, from: l.from, planSrc, drr: (feed === 'wb' && l.ads > 0 && l.revenue > 100) ? Math.round(l.ads / l.revenue * 10000) / 100 : ''};
     });
     rows.sort((a, b) => b.profit - a.profit);
     // строки прошлой записи, которых нет в загруженных файлах, сохраняем (если не выбрана полная замена)
@@ -176,6 +177,22 @@
     return 25000;
   }
 
+  function setMonth(ym) {
+    const el = document.getElementById('up-month');
+    if (el && ym) { el.value = ym; S.month = ym; }
+  }
+
+  // валовая маржа кабинета за месяц: из самого отчёта (старый формат) или из файла ОПиУ (новый)
+  function grossFor(f, ym) {
+    const monthName = MONTH_NAMES[parseInt(ym.split('-')[1], 10) - 1];
+    if (f.parsed.gross && f.parsed.gross[monthName] !== undefined) return f.parsed.gross[monthName];
+    const ent = f.parsed.entity;
+    for (const o of S.opiu) {
+      if (o.period && o.period.ym === ym && ent in o.gross) return o.gross[ent];
+    }
+    return undefined;
+  }
+
   // ---------- загрузка файлов ----------
   async function addFiles(fileList) {
     const status = document.getElementById('up-status');
@@ -185,12 +202,27 @@
       await new Promise(r => setTimeout(r, 30));
       try {
         const buf = await file.arrayBuffer();
-        const parsed = ReportParser.parseWorkbook(XLSX, buf, file.name, {type: 'array'});
+        const any = ReportParser.parseAny(XLSX, buf, file.name, {type: 'array'});
         const maps = loadMaps();
-        const role = Object.assign({}, entityRole(maps, parsed.entity, parsed.market));
-        // тот же кабинет загружен повторно — заменяем
-        S.files = S.files.filter(f => !(parsed.entity && f.parsed.entity === parsed.entity && f.parsed.market === parsed.market));
-        S.files.push({id: S.nextId++, name: file.name, parsed, role});
+        if (any.kind === 'opiu') {
+          S.opiu = S.opiu.filter(o => !(o.period && any.period && o.period.label === any.period.label));
+          S.opiu.push({id: S.nextId++, name: file.name, period: any.period, gross: any.gross});
+          if (any.period && any.period.ym) setMonth(any.period.ym);
+        } else if (any.kind === 'multi') {
+          any.cabinets.forEach(cab => {
+            const parsed = Object.assign({fileName: file.name, period: any.period}, cab);
+            const role = Object.assign({}, entityRole(maps, parsed.entity, parsed.market));
+            S.files = S.files.filter(f => !(f.parsed.entity === parsed.entity && f.parsed.market === parsed.market));
+            S.files.push({id: S.nextId++, name: file.name, parsed, role});
+          });
+          if (any.period && any.period.ym) setMonth(any.period.ym);
+        } else {
+          const parsed = any;
+          const role = Object.assign({}, entityRole(maps, parsed.entity, parsed.market));
+          // тот же кабинет загружен повторно — заменяем
+          S.files = S.files.filter(f => !(parsed.entity && f.parsed.entity === parsed.entity && f.parsed.market === parsed.market));
+          S.files.push({id: S.nextId++, name: file.name, parsed, role});
+        }
         status.textContent = 'Готово: «' + file.name + '»';
       } catch (e) {
         status.textContent = 'Не удалось прочитать «' + file.name + '»: ' + e.message;
@@ -208,7 +240,7 @@
       if (f.parsed.entity) { maps.entities[f.parsed.entity.toLowerCase()] = f.role; saveMaps(maps); }
       render();
     }});
-    const opts = [['ВБ', 'wb', 'ВБ (менеджер ВБ)'], ['ВБ ИП Тарасов', 'wb', 'ВБ ИП Тарасов (в расчёт менеджера ВБ)'],
+    const opts = [['', '', '— не учитывать —'], ['ВБ', 'wb', 'ВБ (менеджер ВБ)'], ['ВБ ИП Тарасов', 'wb', 'ВБ ИП Тарасов (в расчёт менеджера ВБ)'],
       ['Озон', 'oz', 'Озон (менеджер Озон)'], ['Озон Тарасов', 'oz', 'Озон Тарасов (в расчёт менеджера Озон)'],
       ['ЯМ', 'ym', 'ЯМ (менеджер ЯМ)'], ['ЯМ Тарасов', 'ym', 'ЯМ Тарасов (в расчёт менеджера ЯМ)']];
     opts.forEach(([dir, feed, label]) => {
@@ -222,10 +254,21 @@
   function renderFiles(ym) {
     const box = document.getElementById('up-files');
     box.innerHTML = '';
-    if (S.files.length === 0) { box.appendChild(h('p', {class: 'history-empty', text: 'Пока ничего не загружено.'})); return; }
+    if (S.files.length === 0 && S.opiu.length === 0) { box.appendChild(h('p', {class: 'history-empty', text: 'Пока ничего не загружено.'})); return; }
+    S.opiu.forEach(o => {
+      const per = o.period;
+      const names = Object.keys(o.gross);
+      box.appendChild(h('div', {class: 'up-file'},
+        h('div', {class: 'up-file-head'}, h('strong', {text: 'ОПиУ — сводка по компаниям'}), h('span', {class: 'up-badge', text: 'валовая маржа'}),
+          h('button', {class: 'up-x', title: 'Убрать файл', onclick: () => { S.opiu = S.opiu.filter(x => x.id !== o.id); render(); }, text: '✕'})),
+        h('div', {class: 'up-file-meta', text: 'Компаний: ' + names.length + ' · валовая маржа всего: ' + rub(names.reduce((t, n) => t + o.gross[n], 0))}),
+        per ? h('div', {class: 'up-file-meta' + (per.ym && per.full ? '' : ' up-warn'), text: 'Период отчёта: ' + per.label +
+          (!per.ym ? ' — период больше одного месяца, маржа не будет учтена' : per.full ? '' : ' — не весь месяц, итоги будут неполными')}) : null));
+    });
     const monthName = MONTH_NAMES[parseInt(ym.split('-')[1], 10) - 1];
     S.files.forEach(f => {
-      const gross = f.parsed.gross[monthName];
+      const gross = grossFor(f, ym);
+      const per = f.parsed.period;
       const card = h('div', {class: 'up-file'},
         h('div', {class: 'up-file-head'},
           h('strong', {text: (f.parsed.entity || f.name)}),
@@ -236,6 +279,7 @@
           ' · прибыль: ' + rub(f.parsed.totals.profit)),
         h('div', {class: 'up-file-meta'}, 'Валовая маржа за ' + monthName + ': ',
           h('strong', {text: gross === undefined ? 'нет данных' : rub(gross)})),
+        per ? h('div', {class: 'up-file-meta' + (per.full ? '' : ' up-warn'), text: 'Период отчёта: ' + per.label + (per.full ? '' : ' — не весь месяц, итоги будут неполными')}) : null,
         h('div', {class: 'up-file-role'}, 'Куда относить: ', roleSelect(f)));
       box.appendChild(card);
     });
@@ -336,9 +380,22 @@
   function cabinetGross(ym) {
     const monthName = MONTH_NAMES[parseInt(ym.split('-')[1], 10) - 1];
     const out = {};
+    // компании из файла ОПиУ, для которых нет файла по артикулам
+    const covered = new Set(S.files.map(f => f.parsed.entity));
+    const maps0 = loadMaps();
+    S.opiu.forEach(o => {
+      if (!o.period || o.period.ym !== ym) return;
+      Object.keys(o.gross).forEach(comp => {
+        if (covered.has(comp)) return;
+        const role = maps0.entities[comp.toLowerCase()] || DEFAULT_ENTITIES[comp.toLowerCase()];
+        if (!role || !role.dir) return;
+        const k = role.dir + '|' + comp;
+        out[k] = (out[k] || 0) + o.gross[comp];
+      });
+    });
     S.files.forEach(f => {
-      const g = f.parsed.gross[monthName];
-      if (g === undefined) return;
+      const g = grossFor(f, ym);
+      if (g === undefined || !f.role.dir) return;
       const k = f.role.dir + '|' + (f.parsed.entity || f.parsed.fileName);
       out[k] = (out[k] || 0) + g;
     });
@@ -412,7 +469,7 @@
       if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
       S.focusFeed = null;
     }
-    document.getElementById('up-apply').disabled = S.files.length === 0;
+    document.getElementById('up-apply').disabled = S.files.length === 0 && S.opiu.length === 0;
   }
 
   // ---------- запись в расчёты ----------
@@ -422,7 +479,7 @@
     Object.keys(FEEDS).forEach(feed => {
       if (!S.files.some(f => f.role.feed === feed)) return;
       const res = buildLines(feed);
-      const rows = res.rows.map(r => ({name: r.name, profit: r.profit, plan: r.plan, margin: r.margin, catOverride: r.catOverride, ...(feed === 'wb' ? {drr: ''} : {})}));
+      const rows = res.rows.map(r => ({name: r.name, profit: r.profit, plan: r.plan, margin: r.margin, catOverride: r.catOverride, ...(feed === 'wb' ? {drr: r.drr === undefined ? '' : r.drr} : {})}));
       let bonus = 0;
       rows.forEach(r => { bonus += computeFor(feed, r, ym).total; });
       if (feed === 'wb') {
@@ -484,7 +541,7 @@
     drop.addEventListener('click', () => input.click());
     input.addEventListener('change', () => { if (input.files.length) addFiles(input.files); input.value = ''; });
     document.getElementById('up-apply').addEventListener('click', apply);
-    document.getElementById('up-clear').addEventListener('click', () => { S.files = []; render(); });
+    document.getElementById('up-clear').addEventListener('click', () => { S.files = []; S.opiu = []; render(); });
     document.getElementById('up-replace').addEventListener('change', () => render());
     render();
     try {
