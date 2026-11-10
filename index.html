@@ -364,6 +364,11 @@
       <input type="number" id="oklad-input" step="500">
     </div>
 
+    <div class="field">
+      <label for="extra-input">Доп. премия (отзывы, SMM, совмещение и т.п.), ₽</label>
+      <input type="number" id="extra-input" step="500" placeholder="0">
+    </div>
+
     <div class="tariff-note" id="tariff-note"></div>
 
     <div class="presets">
@@ -389,6 +394,7 @@
         <div class="item"><div class="label">Оклад</div><div class="value" id="mini-oklad">0 ₽</div></div>
         <div class="item"><div class="label">Аванс (оклад/2)</div><div class="value" id="mini-advance">0 ₽</div></div>
         <div class="item"><div class="label">Сумма бонусов</div><div class="value" id="mini-bonus">0 ₽</div></div>
+        <div class="item"><div class="label">Доп. премия</div><div class="value" id="mini-extra">0 ₽</div></div>
         <div class="item"><div class="label">Начислено всего</div><div class="value" id="mini-total">0 ₽</div></div>
       </div>
     </div>
@@ -1098,6 +1104,7 @@ const PRESETS = {};
 const tariffSelect = document.getElementById('tariff-select');
 const monthInput = document.getElementById('period-month');
 const okladInput = document.getElementById('oklad-input');
+const extraInput = document.getElementById('extra-input');
 const tariffNote = document.getElementById('tariff-note');
 const rowsBody = document.getElementById('rows-body');
 const rowsTbl = document.getElementById('rows-tbl');
@@ -1257,10 +1264,12 @@ function render() {
 
   const oklad = parseFloat(okladInput.value) || 0;
   const advance = oklad / 2;
-  const final = advance + bonusSum;
-  const totalAccrued = oklad + bonusSum;
+  const extra = parseFloat(extraInput.value) || 0;
+  const final = advance + bonusSum + extra;
+  const totalAccrued = oklad + bonusSum + extra;
 
   document.getElementById('final-value').textContent = fmt(final);
+  document.getElementById('mini-extra').textContent = fmt(extra);
   document.getElementById('mini-oklad').textContent = fmt(oklad);
   document.getElementById('mini-advance').textContent = fmt(advance);
   document.getElementById('mini-bonus').textContent = fmt(bonusSum);
@@ -1272,6 +1281,7 @@ function render() {
 monthInput.addEventListener('input', () => { manualTariff = false; render(); });
 tariffSelect.addEventListener('change', () => { manualTariff = true; render(); });
 okladInput.addEventListener('input', () => { manualOklad = true; render(); });
+extraInput.addEventListener('input', render);
 
 document.getElementById('add-row').addEventListener('click', () => addRow());
 
@@ -1281,6 +1291,7 @@ document.querySelectorAll('.preset-btn[data-preset]').forEach(btn => {
     if (key === 'clear') {
       rows = [];
       manualTariff = false; manualOklad = false;
+      extraInput.value = '';
       monthInput.value = '2026-09';
       render();
       return;
@@ -1288,6 +1299,7 @@ document.querySelectorAll('.preset-btn[data-preset]').forEach(btn => {
     const preset = PRESETS[key];
     monthInput.value = preset.month;
     manualTariff = false; manualOklad = false;
+    extraInput.value = '';
     rows = preset.rows.map(r => newRow(r));
     render();
   });
@@ -1330,7 +1342,7 @@ function computeMonthTotal(ym, entry) {
   entry.rows.forEach(row => {
     bonusSum += computeRow(row, tariffKey).total;
   });
-  return oklad / 2 + bonusSum;
+  return oklad / 2 + bonusSum + (entry.extra || 0);
 }
 
 function renderHistory() {
@@ -1381,6 +1393,7 @@ function renderHistory() {
       manualTariff = false;
       manualOklad = entry.manualOklad || false;
       if (manualOklad) okladInput.value = entry.oklad;
+      extraInput.value = entry.extra || '';
       rows = entry.rows.map(r => newRow(r));
       render();
     });
@@ -1395,6 +1408,7 @@ document.getElementById('save-calc-btn').addEventListener('click', () => {
   hist[ym] = {
     oklad: parseFloat(okladInput.value) || 0,
     manualOklad: manualOklad,
+    extra: parseFloat(extraInput.value) || 0,
     rows: rows.map(r => ({name: r.name, profit: r.profit, plan: r.plan, margin: r.margin, drr: r.drr, catOverride: r.catOverride})),
   };
   saveHistoryRaw(hist);
@@ -1418,6 +1432,7 @@ if (initialMonths.length > 0) {
   monthInput.value = latestYm;
   manualOklad = entry.manualOklad || false;
   if (manualOklad) okladInput.value = entry.oklad;
+  extraInput.value = entry.extra || '';
   rows = entry.rows.map(r => newRow(r));
 } else {
   addRow({name: 'Артикул 1'});
@@ -2343,7 +2358,7 @@ ropRender();
 (function () {
   const defs = [
     {tab: 'wb', month: monthInput, histList: 'history-list', saveBtn: 'save-calc-btn', load: loadHistoryRaw, save: saveHistoryRaw, render: renderHistory,
-      build: () => ({oklad: parseFloat(okladInput.value) || 0, manualOklad: manualOklad,
+      build: () => ({oklad: parseFloat(okladInput.value) || 0, manualOklad: manualOklad, extra: parseFloat(extraInput.value) || 0,
         rows: rows.map(r => ({name: r.name, profit: r.profit, plan: r.plan, margin: r.margin, drr: r.drr, catOverride: r.catOverride}))})},
     {tab: 'oz', month: ozMonthInput, histList: 'oz-history-list', saveBtn: 'oz-save-calc-btn', load: ozLoadHistoryRaw, save: ozSaveHistoryRaw, render: ozRenderHistory,
       build: () => ({oklad: parseFloat(ozOkladInput.value) || 0, extra: parseFloat(ozExtraInput.value) || 0,
@@ -2619,7 +2634,7 @@ function vedGetAutoData(source, ym) {
     const oklad = h.manualOklad ? h.oklad : t.oklad;
     let bonusSum = 0;
     h.rows.forEach(r => { bonusSum += computeRow(r, tariffKey).total; });
-    return {advNeof: oklad / 2, salNeof: oklad / 2 + bonusSum, salOf: 0};
+    return {advNeof: oklad / 2, salNeof: oklad / 2 + bonusSum, salOf: 0, prem: h.extra || 0};
   }
   if (source === 'oz') {
     const h = ozLoadHistoryRaw()[ym];

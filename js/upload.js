@@ -687,7 +687,7 @@
       rows.forEach(r => { bonus += computeFor(feed, r, ym).total; });
       if (feed === 'wb') {
         const hist = loadHistoryRaw(); const ex = hist[ym] || {};
-        hist[ym] = {oklad: ex.oklad != null ? ex.oklad : TARIFFS[tariffForMonth(ym)].oklad, manualOklad: !!ex.manualOklad, rows};
+        hist[ym] = {oklad: ex.oklad != null ? ex.oklad : TARIFFS[tariffForMonth(ym)].oklad, manualOklad: !!ex.manualOklad, extra: ex.extra || 0, rows};
         saveHistoryRaw(hist);
       } else if (feed === 'oz') {
         const hist = ozLoadHistoryRaw(); const ex = hist[ym] || {};
