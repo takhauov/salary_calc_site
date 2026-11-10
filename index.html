@@ -650,9 +650,21 @@
     </div>
 
     <div class="field">
-      <label for="rop-advance-input">Аванс, ₽</label>
+      <label for="rop-advance-input">Аванс (неофициальный), ₽</label>
       <input type="number" id="rop-advance-input" step="1000" value="40000">
     </div>
+
+    <div class="field">
+      <label for="rop-official-advance-input">Официальный аванс, ₽</label>
+      <input type="number" id="rop-official-advance-input" step="1" value="0">
+    </div>
+
+    <div class="field">
+      <label for="rop-official-salary-input">Официальная ЗП, ₽</label>
+      <input type="number" id="rop-official-salary-input" step="1" value="0">
+    </div>
+
+    <div class="tariff-note">Официальные аванс и ЗП входят в оклад: неофициальная ЗП = оклад − аванс − оф. аванс − оф. ЗП</div>
 
     <div class="presets">
       <p>История расчётов</p>
@@ -675,6 +687,7 @@
       <div class="summary-mini">
         <div class="item"><div class="label">Оклад</div><div class="value" id="rop-mini-oklad">0 ₽</div></div>
         <div class="item"><div class="label">Аванс</div><div class="value" id="rop-mini-advance">0 ₽</div></div>
+        <div class="item"><div class="label">Оф. аванс + оф. ЗП</div><div class="value" id="rop-mini-official">0 ₽</div></div>
         <div class="item"><div class="label">Маржа после налогов, всего</div><div class="value" id="rop-mini-margin">0 ₽</div></div>
         <div class="item"><div class="label">Премия (3%)</div><div class="value" id="rop-mini-premium">0 ₽</div></div>
         <div class="item"><div class="label">Начислено всего</div><div class="value" id="rop-mini-total">0 ₽</div></div>
@@ -1261,7 +1274,7 @@ okladInput.addEventListener('input', () => { manualOklad = true; render(); });
 
 document.getElementById('add-row').addEventListener('click', () => addRow());
 
-document.querySelectorAll('.preset-btn').forEach(btn => {
+document.querySelectorAll('.preset-btn[data-preset]').forEach(btn => {
   btn.addEventListener('click', () => {
     const key = btn.dataset.preset;
     if (key === 'clear') {
@@ -2139,6 +2152,8 @@ let ropMargins = {};
 const ropMonthInput = document.getElementById('rop-period-month');
 const ropOkladInput = document.getElementById('rop-oklad-input');
 const ropAdvanceInput = document.getElementById('rop-advance-input');
+const ropOfficialAdvanceInput = document.getElementById('rop-official-advance-input');
+const ropOfficialSalaryInput = document.getElementById('rop-official-salary-input');
 const ropRowsBody = document.getElementById('rop-rows-body');
 
 function ropRender() {
@@ -2171,11 +2186,14 @@ function ropRender() {
   const oklad = parseFloat(ropOkladInput.value) || 0;
   const advance = parseFloat(ropAdvanceInput.value) || 0;
   const premium = marginSum * 0.03;
-  const final = oklad - advance + premium;
+  const offAdv = parseFloat(ropOfficialAdvanceInput.value) || 0;
+  const offSal = parseFloat(ropOfficialSalaryInput.value) || 0;
+  const final = oklad - advance - offAdv - offSal + premium;
 
   document.getElementById('rop-final-value').textContent = fmt(final);
   document.getElementById('rop-mini-oklad').textContent = fmt(oklad);
   document.getElementById('rop-mini-advance').textContent = fmt(advance);
+  document.getElementById('rop-mini-official').textContent = fmt(offAdv + offSal);
   document.getElementById('rop-mini-margin').textContent = fmt(marginSum);
   document.getElementById('rop-mini-premium').textContent = fmt(premium);
   document.getElementById('rop-mini-total').textContent = fmt(oklad + premium);
@@ -2183,6 +2201,8 @@ function ropRender() {
 
 ropOkladInput.addEventListener('input', ropRender);
 ropAdvanceInput.addEventListener('input', ropRender);
+ropOfficialAdvanceInput.addEventListener('input', ropRender);
+ropOfficialSalaryInput.addEventListener('input', ropRender);
 
 document.querySelectorAll('[data-rop-preset]').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -2190,6 +2210,8 @@ document.querySelectorAll('[data-rop-preset]').forEach(btn => {
       ropMargins = {};
       ropOkladInput.value = 80000;
       ropAdvanceInput.value = 40000;
+      ropOfficialAdvanceInput.value = 0;
+      ropOfficialSalaryInput.value = 0;
       ropMonthInput.value = '2026-09';
       ropRender();
     }
@@ -2266,6 +2288,8 @@ function ropRenderHistory() {
       ropMonthInput.value = ym;
       ropOkladInput.value = entry.oklad;
       ropAdvanceInput.value = entry.advance;
+      ropOfficialAdvanceInput.value = entry.officialAdvance || 0;
+      ropOfficialSalaryInput.value = entry.officialSalary || 0;
       ropMargins = Object.assign({}, entry.margins);
       ropRender();
     });
@@ -2280,6 +2304,8 @@ document.getElementById('rop-save-calc-btn').addEventListener('click', () => {
   hist[ym] = {
     oklad: parseFloat(ropOkladInput.value) || 0,
     advance: parseFloat(ropAdvanceInput.value) || 0,
+    officialAdvance: parseFloat(ropOfficialAdvanceInput.value) || 0,
+    officialSalary: parseFloat(ropOfficialSalaryInput.value) || 0,
     margins: Object.assign({}, ropMargins),
   };
   ropSaveHistoryRaw(hist);
@@ -2302,6 +2328,8 @@ if (ropInitialMonths.length > 0) {
   ropMonthInput.value = latestYm;
   ropOkladInput.value = entry.oklad;
   ropAdvanceInput.value = entry.advance;
+  ropOfficialAdvanceInput.value = entry.officialAdvance || 0;
+  ropOfficialSalaryInput.value = entry.officialSalary || 0;
   ropMargins = Object.assign({}, entry.margins);
 }
 ropRender();
@@ -2570,7 +2598,11 @@ function vedGetAutoData(source, ym) {
     let marginSum = 0;
     ROP_DIRECTIONS.forEach(dir => { marginSum += parseFloat(h.margins[dir]) || 0; });
     const premium = marginSum * 0.03;
-    return {advNeof: h.advance, salNeof: h.oklad - h.advance, salOf: 0, prem: premium};
+    const offAdv = h.officialAdvance || 0;
+    const offSal = h.officialSalary || 0;
+    const res = {advNeof: h.advance, salNeof: h.oklad - h.advance - offAdv - offSal, salOf: offSal, prem: premium};
+    if (offAdv) res.advOf = offAdv;
+    return res;
   }
   return null;
 }
