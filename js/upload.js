@@ -160,15 +160,9 @@
   // ---------- экономика из Оцифровки (data/economics.json, раз в сутки обновляет GitHub Actions) ----------
   const EC = {data: null, error: '', loading: false};
   async function loadEconomics() {
-    if (EC.loading) return;
-    EC.loading = true; EC.error = '';
-    try {
-      if (!window.GitSync || !GitSync.configured()) throw new Error('подключите GitHub (кнопка «GitHub» сверху), тогда данные подтянутся сами');
-      const text = await GitSync.readFile('data/economics.json');
-      EC.data = text ? JSON.parse(text) : null;
-      if (!EC.data) EC.error = 'файл data/economics.json пока не создан — запустите «Экономика из Оцифровки» в Actions репозитория';
-    } catch (e) { EC.error = e.message || String(e); }
-    EC.loading = false;
+    EC.loading = true; render(true);
+    await EcoStore.load();
+    EC.loading = false; EC.data = EcoStore.data; EC.error = EcoStore.error;
     S.apiMonth = '';                                   // заново применить к выбранному месяцу
     render(true);
   }

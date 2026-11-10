@@ -724,6 +724,8 @@
     <div class="field">
       <label for="as-purchase-volume-input">Объём закупки за месяц, ₽</label>
       <input type="number" id="as-purchase-volume-input" step="1000" placeholder="0">
+      <div class="tariff-note" id="as-purchase-hint" style="margin-top:6px;"></div>
+      <button class="add-btn" id="as-purchase-auto-btn" style="display:none;margin-top:6px;" type="button">Взять из Оцифровки</button>
     </div>
 
     <div class="field">
@@ -2324,6 +2326,35 @@ function asCalc(e) {
   };
 }
 
+// Объём закупки: из Оцифровки (data/economics.json), если не введён вручную. Записи без признака purchaseManual (старые) считаются введёнными вручную.
+let asTouched = false;
+function asAutoPurchase(ym) { return window.EcoStore ? EcoStore.purchases(ym) : null; }
+function asWithAuto(entry, ym) {
+  if (!entry || entry.purchaseManual !== false) return entry;
+  const a = asAutoPurchase(ym);
+  return a ? Object.assign({}, entry, {purchaseVolume: a.total}) : entry;
+}
+function asApplyAuto() {
+  const ym = asMonthInput.value;
+  const a = asAutoPurchase(ym);
+  const hint = document.getElementById('as-purchase-hint');
+  const btn = document.getElementById('as-purchase-auto-btn');
+  if (a && !asTouched) asPurchaseVolumeInput.value = a.total;
+  btn.style.display = a && asTouched ? '' : 'none';
+  if (!window.EcoStore || !EcoStore.loaded) hint.textContent = '';
+  else if (!a) hint.textContent = 'Из Оцифровки за этот месяц данных нет — введите вручную.';
+  else hint.textContent = (asTouched ? 'Введено вручную. ' : 'Из Оцифровки: ') + 'закупки за ' + ym + ' = ' + fmt(a.total) +
+    (a.full ? '' : ' (месяц не закончен, данные по ' + a.to.slice(8, 10) + '.' + a.to.slice(5, 7) + ')') + '.';
+  asRender();
+}
+window.addEventListener('eco-loaded', () => { asApplyAuto(); if (typeof vedRender === 'function') { try { vedRender(); } catch (e) {} } asRenderHistory(); });
+asMonthInput.addEventListener('change', () => {
+  const e = asLoadHistoryRaw()[asMonthInput.value];
+  if (e) asFillForm(e); else { asTouched = false; asPurchaseVolumeInput.value = ''; asApplyAuto(); }
+});
+asPurchaseVolumeInput.addEventListener('input', () => { asTouched = true; asApplyAuto(); });
+document.getElementById('as-purchase-auto-btn').addEventListener('click', () => { asTouched = false; asApplyAuto(); });
+
 function asCurrentInput() {
   return {
     officialAdvance: asOfficialAdvanceInput.value,
@@ -2367,7 +2398,7 @@ function asSeedHistoryIfEmpty() { return; }
 function asGetAutoData(ym) {
   const h = asLoadHistoryRaw()[ym];
   if (!h) return null;
-  const r = asCalc(h);
+  const r = asCalc(asWithAuto(h, ym));
   return {advOf: r.advOf, advNeof: r.advNeof, salOf: r.salOf, salNeof: r.salNeof};
 }
 
@@ -2375,8 +2406,10 @@ function asFillForm(entry) {
   asOfficialAdvanceInput.value = entry.officialAdvance || 0;
   asOfficialSalaryInput.value = entry.officialSalary || 0;
   asBloggersInput.value = entry.bloggers || '';
+  asTouched = entry.purchaseManual === undefined ? !!entry.purchaseVolume : !!entry.purchaseManual;
   asPurchaseVolumeInput.value = entry.purchaseVolume || '';
   asSchoolsInput.value = entry.schools || '';
+  asApplyAuto();
 }
 
 function asRenderHistory() {
@@ -2403,7 +2436,7 @@ function asRenderHistory() {
     monthSpan.textContent = monthLabel(ym);
     const totalSpan = document.createElement('span');
     totalSpan.className = 'hist-total';
-    totalSpan.textContent = fmt(asCalc(entry).total);
+    totalSpan.textContent = fmt(asCalc(asWithAuto(entry, ym)).total);
     info.appendChild(monthSpan);
     info.appendChild(totalSpan);
     item.appendChild(info);
@@ -2440,6 +2473,7 @@ document.getElementById('as-save-calc-btn').addEventListener('click', () => {
     officialSalary: parseFloat(cur.officialSalary) || 0,
     bloggers: parseFloat(cur.bloggers) || 0,
     purchaseVolume: parseFloat(cur.purchaseVolume) || 0,
+    purchaseManual: asTouched,
     schools: parseFloat(cur.schools) || 0,
   };
   asSaveHistoryRaw(hist);
@@ -2859,6 +2893,7 @@ vedRender();
 <script src="js/parser.js"></script>
 <script src="js/sync.js"></script>
 <script src="js/sync-ui.js"></script>
+<script src="js/eco.js"></script>
 <script src="js/upload.js"></script>
 </body>
 </html>
