@@ -201,10 +201,11 @@
       const r = rows[i] || [];
       const plat = lower(r[cPlat]), comp = norm(r[cComp]), art = norm(r[cArt]);
       if (!comp || !PLATFORM[plat]) continue;                    // «Итого» и пустые строки
-      if (!art || lower(art) === 'без артикула') continue;
+      if (!art) continue;
       const key = comp + '|' + plat;
-      const cab = cabs.get(key) || {entity: comp, market: PLATFORM[plat], map: new Map()};
+      const cab = cabs.get(key) || {entity: comp, market: PLATFORM[plat], map: new Map(), unalloc: 0};
       cabs.set(key, cab);
+      if (lower(art) === 'без артикула') { cab.unalloc += num(r[cProfit]); continue; }   // расходы без товара: в строки не идут, но входят в маржу компании
       const k = art.toLowerCase();
       const cur = cab.map.get(k) || {key: k, name: art, profit: 0, revenue: 0, units: 0, ads: 0, title: ''};
       cur.profit += num(r[cProfit]);
@@ -219,8 +220,9 @@
       const articles = Array.from(cab.map.values()).map(a => ({...a,
         marginPct: a.revenue > 100 ? Math.round(a.profit / a.revenue * 10000) / 100 : 0}));
       const totals = articles.reduce((t, a) => ({profit: t.profit + a.profit, revenue: t.revenue + a.revenue}), {profit: 0, revenue: 0});
-      if (Math.abs(totals.profit) < 1 && totals.revenue < 1) return;   // пустой кабинет (например, Мэлд трейдинг)
-      out.push({entity: cab.entity, market: cab.market, articles, totals, gross: {}});
+      if (Math.abs(totals.profit) < 1 && totals.revenue < 1 && Math.abs(cab.unalloc) < 1) return;   // пустой кабинет (например, Мэлд трейдинг)
+      // маржа компании после налогов и НДС = операционная прибыль по всем строкам, включая «Без артикула»
+      out.push({entity: cab.entity, market: cab.market, articles, totals, gross: {}, afterTax: totals.profit + cab.unalloc});
     });
     return out;
   }
@@ -236,15 +238,18 @@
     const head = rows[h].map(lower);
     const cComp = head.indexOf('компания'), cGross = head.indexOf('валовая маржа');
     const cRev = head.findIndex(c => c.startsWith('реализация'));
-    const gross = {}, revenue = {};
+    const cTax = head.indexOf('налог'), cVat = head.indexOf('ндс');
+    const gross = {}, revenue = {}, net = {};
     for (let i = h + 1; i < rows.length; i++) {
       const r = rows[i] || [];
       const comp = norm(r[cComp]);
       if (!comp || /^итого/i.test(comp) || typeof r[cGross] !== 'number') continue;
       gross[comp] = r[cGross];
       if (cRev >= 0) revenue[comp] = num(r[cRev]);
+      // маржа после налогов = валовая маржа − налог − НДС (в файле они со знаком «минус»)
+      if (cTax >= 0 && cVat >= 0) net[comp] = r[cGross] + num(r[cTax]) + num(r[cVat]);
     }
-    return {gross, revenue};
+    return {gross, revenue, net};
   }
 
   // Определяет формат файла: {kind: 'multi'|'opiu'|'cabinet', ...}
@@ -259,7 +264,7 @@
       const rows = sheetRows(XLSX, wb, sumName);
       const res = parseOpiuSummary(rows);
       if (!res) throw new Error('На листе «Сводка по компаниям» не нашёл столбцы «Компания» и «Валовая маржа»');
-      return {kind: 'opiu', fileName, period: parsePeriod(rows), gross: res.gross, revenue: res.revenue};
+      return {kind: 'opiu', fileName, period: parsePeriod(rows), gross: res.gross, revenue: res.revenue, net: res.net};
     }
     const artName = findSheet(names, ARTICLE_SHEETS);
     if (artName) {

@@ -329,7 +329,7 @@
       <p class="subtitle">Перетащите сюда отчёты: старые экономические (.xlsm по каждому кабинету) или новые выгрузки .xlsx («По артикулам» по всем компаниям + «ОПиУ»). Файлы никуда не отправляются: они читаются прямо в вашем браузере.</p>
       <div class="field" style="max-width:240px;"><label for="up-month">Расчётный месяц</label><input type="month" id="up-month"></div>
       <p class="tariff-note" id="up-weeks-hint"></p>
-      <div class="up-drop" id="up-drop"><strong>Перетащите отчёты сюда</strong> или нажмите, чтобы выбрать<br><span style="font-size:12.5px;">любое число файлов сразу. Новый формат: «По артикулам» (прибыль по товарам) и «ОПиУ» (валовая маржа для РОП) за целый месяц</span></div>
+      <div class="up-drop" id="up-drop"><strong>Перетащите отчёты сюда</strong> или нажмите, чтобы выбрать<br><span style="font-size:12.5px;">любое число файлов сразу. Новый формат: «По артикулам» (прибыль по товарам) и «ОПиУ» (маржа для РОП) за целый месяц</span></div>
       <input type="file" id="up-file-input" multiple accept=".xlsm,.xlsx" style="display:none;">
       <div id="up-status" class="tariff-note" style="background:none;padding:0;"></div>
       <div id="up-files"></div>
@@ -639,7 +639,7 @@
       <input type="month" id="rop-period-month" value="2026-09">
     </div>
 
-    <div class="tariff-note">Оклад + премия 3% от валовой маржи по всем направлениям за месяц</div>
+    <div class="tariff-note">Оклад + премия 3% от маржи после налогов (валовая маржа − налог − НДС) по всем направлениям за месяц</div>
 
     <div class="field" style="margin-top:14px;">
       <label for="rop-oklad-input">Оклад, ₽</label>
@@ -672,7 +672,7 @@
       <div class="summary-mini">
         <div class="item"><div class="label">Оклад</div><div class="value" id="rop-mini-oklad">0 ₽</div></div>
         <div class="item"><div class="label">Аванс</div><div class="value" id="rop-mini-advance">0 ₽</div></div>
-        <div class="item"><div class="label">Валовая маржа, всего</div><div class="value" id="rop-mini-margin">0 ₽</div></div>
+        <div class="item"><div class="label">Маржа после налогов, всего</div><div class="value" id="rop-mini-margin">0 ₽</div></div>
         <div class="item"><div class="label">Премия (3%)</div><div class="value" id="rop-mini-premium">0 ₽</div></div>
         <div class="item"><div class="label">Начислено всего</div><div class="value" id="rop-mini-total">0 ₽</div></div>
       </div>
@@ -683,14 +683,14 @@
         <thead>
           <tr>
             <th class="col-name">Направление</th>
-            <th class="col-num">Валовая маржа за месяц, ₽</th>
+            <th class="col-num">Маржа после налогов за месяц, ₽</th>
           </tr>
         </thead>
         <tbody id="rop-rows-body"></tbody>
       </table>
     </div>
 
-    <p class="foot-note">Данные берутся с листа «ОПиУ &ndash; месяцы» (строка «Валовая маржа») по каждому направлению. С этого месяца в расчёт также включается кабинет ВБ ИП Тарасов &mdash; и его же с этого момента нужно учитывать в расчёте зарплаты менеджера ВБ.</p>
+    <p class="foot-note">Данные берутся с листа «ОПиУ &ndash; месяцы» (строка «Валовая маржа») по каждому направлению; с ноября 2026 — маржа после налогов и НДС (валовая маржа − налог − НДС). С этого месяца в расчёт также включается кабинет ВБ ИП Тарасов &mdash; и его же с этого момента нужно учитывать в расчёте зарплаты менеджера ВБ.</p>
   </main>
 </div>
 
@@ -2122,7 +2122,7 @@ if (ymInitialMonths.length > 0) {
 }
 ymRender();
 
-// ---------- РОП: расчёт (оклад + 3% от суммарной валовой маржи) ----------
+// ---------- РОП: расчёт (оклад + 3% от суммарной маржи после налогов) ----------
 
 const ROP_DIRECTIONS = ['ВБ', 'Озон', 'ЯМ', 'ВБ ИП Тарасов', 'Озон Тарасов', 'ЯМ Тарасов'];
 

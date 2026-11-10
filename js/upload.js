@@ -184,8 +184,11 @@
     const period = {from: m.from, to: m.to, ym, full: !!m.full, label: ruDate(m.from) + '–' + ruDate(m.to) + '.' + m.to.slice(0, 4)};
     const maps = loadMaps();
     const cabs = new Map();
+    const net = {};
     (m.articles || []).forEach(r => {
-      if (r.noArticle || !r.article || !r.company) return;
+      if (!r.company) return;
+      net[r.company] = (net[r.company] || 0) + (r.operatingProfit || 0);            // маржа после налогов и НДС: все строки, включая «Без артикула»
+      if (r.noArticle || !r.article) return;
       const ck = r.company + '|' + r.mp;
       const cab = cabs.get(ck) || {entity: r.company, market: r.mp === 'ozon' ? 'oz' : r.mp, map: new Map()};
       cabs.set(ck, cab);
@@ -199,13 +202,13 @@
       const articles = Array.from(cab.map.values());
       const totals = articles.reduce((t, a) => ({profit: t.profit + a.profit, revenue: t.revenue + a.revenue}), {profit: 0, revenue: 0});
       if (Math.abs(totals.profit) < 1 && totals.revenue < 1) return;
-      const parsed = {fileName: 'Оцифровка', period, entity: cab.entity, market: cab.market, articles, totals, gross: {}};
+      const parsed = {fileName: 'Оцифровка', period, entity: cab.entity, market: cab.market, articles, totals, gross: {}, afterTax: net[cab.entity]};
       S.files.push({id: S.nextId++, name: 'Оцифровка', fromApi: true, parsed, role: Object.assign({}, entityRole(maps, cab.entity, cab.market))});
     });
     if (!S.opiu.some(o => o.period && o.period.ym === ym)) {
       const gross = {};
       (m.companies || []).forEach(c => { if (c.company && typeof c.grossMargin === 'number') gross[c.company] = (gross[c.company] || 0) + c.grossMargin; });
-      if (Object.keys(gross).length) S.opiu.push({id: S.nextId++, name: 'Оцифровка', fromApi: true, period, gross});
+      if (Object.keys(gross).length) S.opiu.push({id: S.nextId++, name: 'Оцифровка', fromApi: true, period, gross, net});
     }
   }
 
@@ -303,6 +306,16 @@
     if (el && ym) { el.value = ym; S.month = ym; }
   }
 
+  // маржа кабинета для премии РОП: ПОСЛЕ налогов и НДС (ОПиУ: валовая − налог − НДС; или сумма операционной прибыли по всем строкам).
+  // В старых отчётах .xlsm налога нет — тогда остаётся валовая маржа (до налогов).
+  function ropBaseFor(f, ym) {
+    const ent = f.parsed.entity;
+    for (const o of S.opiu) if (o.period && o.period.ym === ym && o.net && ent in o.net) return {value: o.net[ent], afterTax: true};
+    if (f.parsed.afterTax !== undefined && grossFor(f, ym) !== undefined) return {value: f.parsed.afterTax, afterTax: true};
+    const g = grossFor(f, ym);
+    return g === undefined ? undefined : {value: g, afterTax: false};
+  }
+
   // валовая маржа кабинета за месяц: из самого отчёта (старый формат) или из файла ОПиУ (новый)
   function grossFor(f, ym) {
     const monthName = MONTH_NAMES[parseInt(ym.split('-')[1], 10) - 1];
@@ -327,7 +340,7 @@
         const maps = loadMaps();
         if (any.kind === 'opiu') {
           S.opiu = S.opiu.filter(o => !(o.period && any.period && (o.period.label === any.period.label || (o.fromApi && o.period.ym === any.period.ym))));
-          S.opiu.push({id: S.nextId++, name: file.name, period: any.period, gross: any.gross});
+          S.opiu.push({id: S.nextId++, name: file.name, period: any.period, gross: any.gross, net: any.net || {}});
           if (any.period && any.period.ym) setMonth(any.period.ym);
         } else if (any.kind === 'multi') {
           any.cabinets.forEach(cab => {
@@ -382,7 +395,7 @@
       box.appendChild(h('div', {class: 'up-file'},
         h('div', {class: 'up-file-head'}, h('strong', {text: 'ОПиУ — сводка по компаниям'}), h('span', {class: 'up-badge', text: 'валовая маржа'}),
           h('button', {class: 'up-x', title: 'Убрать файл', onclick: () => { S.opiu = S.opiu.filter(x => x.id !== o.id); render(); }, text: '✕'})),
-        h('div', {class: 'up-file-meta', text: 'Компаний: ' + names.length + ' · валовая маржа всего: ' + rub(names.reduce((t, n) => t + o.gross[n], 0))}),
+        h('div', {class: 'up-file-meta', text: 'Компаний: ' + names.length + ' · валовая маржа всего: ' + rub(names.reduce((t, n) => t + o.gross[n], 0)) + (o.net && Object.keys(o.net).length ? ' · после налогов: ' + rub(Object.keys(o.net).reduce((t, n) => t + o.net[n], 0)) : '')}),
         per ? h('div', {class: 'up-file-meta' + (per.ym && per.full ? '' : ' up-warn'), text: 'Период отчёта: ' + per.label +
           (!per.ym ? ' — период больше одного месяца, маржа не будет учтена' : per.full ? '' : ' — не весь месяц, итоги будут неполными')}) : null));
     });
@@ -399,7 +412,9 @@
           'Артикулов: ' + f.parsed.articles.length + ' · реализация по артикулам: ' + rub(f.parsed.totals.revenue) +
           ' · прибыль: ' + rub(f.parsed.totals.profit)),
         h('div', {class: 'up-file-meta'}, 'Валовая маржа за ' + monthName + ': ',
-          h('strong', {text: gross === undefined ? 'нет данных' : rub(gross)})),
+          h('strong', {text: gross === undefined ? 'нет данных' : rub(gross)}),
+          (() => { const b = ropBaseFor(f, ym); return b === undefined ? null : h('span', {text: ' · для премии РОП: '},
+            h('strong', {text: rub(b.value)}), b.afterTax ? ' (после налогов)' : ' (до налогов — в старом отчёте налога нет)'); })()),
         per ? h('div', {class: 'up-file-meta' + (per.full ? '' : ' up-warn'), text: 'Период отчёта: ' + per.label + (per.full ? '' : ' — не весь месяц, итоги будут неполными')}) : null,
         h('div', {class: 'up-file-role'}, 'Куда относить: ', roleSelect(f)));
       box.appendChild(card);
@@ -533,14 +548,14 @@
         const role = maps0.entities[comp.toLowerCase()] || DEFAULT_ENTITIES[comp.toLowerCase()];
         if (!role || !role.dir) return;
         const k = role.dir + '|' + comp;
-        out[k] = (out[k] || 0) + o.gross[comp];
+        out[k] = (out[k] || 0) + (o.net && comp in o.net ? o.net[comp] : o.gross[comp]);
       });
     });
     S.files.forEach(f => {
-      const g = grossFor(f, ym);
-      if (g === undefined || !f.role.dir) return;
+      const b = ropBaseFor(f, ym);
+      if (b === undefined || !f.role.dir) return;
       const k = f.role.dir + '|' + (f.parsed.entity || f.parsed.fileName);
-      out[k] = (out[k] || 0) + g;
+      out[k] = (out[k] || 0) + b.value;
     });
     return out;
   }
@@ -570,14 +585,14 @@
 
   function renderRop(ym) {
     const sec = h('div', {class: 'card up-feed'});
-    sec.appendChild(h('h2', {text: 'РОП — валовая маржа за месяц'}));
+    sec.appendChild(h('h2', {text: 'РОП — маржа после налогов за месяц'}));
     const sums = ropPreview(ym);
     const dirs = Object.keys(sums);
-    if (dirs.length === 0) { sec.appendChild(h('p', {class: 'history-empty', text: 'Нет данных: в загруженных файлах не нашлась «Валовая маржа» за этот месяц.'})); return sec; }
+    if (dirs.length === 0) { sec.appendChild(h('p', {class: 'history-empty', text: 'Нет данных: в загруженных файлах не нашлась маржа за этот месяц.'})); return sec; }
     const ex = ropLoadHistoryRaw()[ym];
     const merged = ropMerge(ym, ex).margins;
     const tbl = h('table', {class: 'up-table'});
-    tbl.appendChild(h('thead', {}, h('tr', {}, h('th', {text: 'Направление'}), h('th', {class: 'num', text: 'Валовая маржа, ₽'}), h('th', {text: 'Источник'}))));
+    tbl.appendChild(h('thead', {}, h('tr', {}, h('th', {text: 'Направление'}), h('th', {class: 'num', text: 'Маржа после налогов, ₽'}), h('th', {text: 'Источник'}))));
     const tb = h('tbody');
     let total = 0;
     DIRS.forEach(d => {
@@ -701,7 +716,7 @@
       ex.margins = m.margins; ex.cabinets = m.cabinets;
       hist[ym] = ex;
       ropSaveHistoryRaw(hist);
-      summary.push('РОП: валовая маржа обновлена (' + Object.keys(sums).join(', ') + ')');
+      summary.push('РОП: маржа после налогов обновлена (' + Object.keys(sums).join(', ') + ')');
     }
     const st = document.getElementById('up-status');
     st.textContent = 'Записываю…';
