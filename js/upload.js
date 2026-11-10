@@ -560,6 +560,14 @@
     const prevCab = Object.assign({}, (ex && ex.cabinets) || {});
     const margins = Object.assign({}, (ex && ex.margins) || {});
     const touched = {};
+    // кабинет раньше был записан под другим направлением (например, роль поменяли): убираем старую долю, чтобы не считать дважды
+    Object.keys(cab).forEach(k => {
+      const [dir, ent] = k.split('|');
+      Object.keys(prevCab).forEach(pk => {
+        const [pdir, pent] = pk.split('|');
+        if (pent === ent && pdir !== dir) { margins[pdir] = (margins[pdir] || 0) - (prevCab[pk] || 0); delete prevCab[pk]; }
+      });
+    });
     Object.keys(cab).forEach(k => {
       const dir = k.split('|')[0];
       touched[dir] = true;
