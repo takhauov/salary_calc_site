@@ -26,7 +26,8 @@
   function loadMaps() {
     let stored = {};
     try { stored = JSON.parse(localStorage.getItem(MAP_KEY) || '{}') || {}; } catch (e) {}
-    return {articles: Object.assign({wb: {}, oz: {}, ym: {}}, stored.articles || {}), entities: stored.entities || {}};
+    return {articles: Object.assign({wb: {}, oz: {}, ym: {}}, stored.articles || {}), entities: stored.entities || {},
+      planRows: Object.assign({wb: {}, oz: {}, ym: {}}, stored.planRows || {})};
   }
   function saveMaps(m) { try { localStorage.setItem(MAP_KEY, JSON.stringify(m)); } catch (e) {} }
   function articleLine(maps, feed, key) {
@@ -90,6 +91,56 @@
     return out;
   }
 
+  // ---------- план-факт из Воронки (data/planfact.json, его раз в сутки обновляет GitHub Actions) ----------
+  const PF = {data: null, error: '', loading: false};
+  const PF_MP = {wb: 'wb', oz: 'ozon', ym: 'ym'};
+  async function loadPlanFact() {
+    if (PF.loading) return;
+    PF.loading = true; PF.error = '';
+    try {
+      if (!window.GitSync || !GitSync.configured()) throw new Error('подключите GitHub (кнопка «GitHub» сверху), тогда план подтянется сам');
+      const text = await GitSync.readFile('data/planfact.json');
+      PF.data = text ? JSON.parse(text) : null;
+      if (!PF.data) PF.error = 'файл data/planfact.json пока не создан — запустите «План-факт из Воронки» в Actions репозитория';
+    } catch (e) { PF.error = e.message || String(e); }
+    PF.loading = false;
+    render(true);
+  }
+  function pfMonth(ym) { return PF.data && PF.data.months && PF.data.months[ym] ? PF.data.months[ym] : null; }
+  // строки Воронки по менеджеру: сопоставление со строкой расчёта (вручную → по совпадению названия)
+  function pfRows(feed, ym, maps, lineNames) {
+    const m = pfMonth(ym);
+    if (!m) return [];
+    const byNorm = {};
+    lineNames.forEach(n => { byNorm[normName(n)] = n; });
+    return m.rows.filter(r => r.mp === PF_MP[feed] && (r.planRub > 0 || r.factRub > 0)).map(r => {
+      const own = maps.planRows[feed] || {};
+      let line = r.rowId in own ? own[r.rowId] : (byNorm[normName(r.name)] || '');
+      return Object.assign({}, r, {line, pct: r.planRub > 0 ? Math.round(r.factRub / r.planRub * 1000) / 10 : null});
+    });
+  }
+  // «План, %» по строкам расчёта: сумма факта / сумма плана всех связанных строк Воронки
+  function pfPlanByLine(feed, ym, maps, lineNames) {
+    const acc = {};
+    pfRows(feed, ym, maps, lineNames).forEach(r => {
+      if (!r.line || !(r.planRub > 0)) return;
+      const k = normName(r.line);
+      acc[k] = acc[k] || {plan: 0, fact: 0};
+      acc[k].plan += r.planRub; acc[k].fact += r.factRub;
+    });
+    const out = {};
+    Object.keys(acc).forEach(k => { out[k] = Math.round(acc[k].fact / acc[k].plan * 1000) / 10; });
+    return out;
+  }
+  function lineNamesFor(feed, ym) {
+    const names = DEFAULT_LINES[feed].slice();
+    const ex = existingEntry(feed, ym);
+    if (ex && ex.rows) ex.rows.forEach(r => { if (!names.includes(r.name)) names.push(r.name); });
+    const maps = loadMaps();
+    Object.values(maps.articles[feed] || {}).forEach(n => { if (n && !names.includes(n)) names.push(n); });
+    return names;
+  }
+
   // ---------- состояние ----------
   const S = {
     month: '',
@@ -135,6 +186,7 @@
       });
     });
     const planFromText = parsePlanText(S.planText[feed]);
+    const planFromPF = pfPlanByLine(feed, ym, maps, lineNamesFor(feed, ym));
     const ex = existingEntry(feed, ym);
     const rows = Array.from(lines.values()).map(l => {
       const margin = l.revenue > 100 ? Math.round(l.profit / l.revenue * 10000) / 100 : 0;
@@ -143,6 +195,7 @@
       let planSrc = '';
       if (S.planOverride[feed][l.name] !== undefined) { plan = S.planOverride[feed][l.name]; planSrc = 'вручную'; }
       else if (key in planFromText) { plan = planFromText[key]; planSrc = 'из план-факта'; }
+      else if (key in planFromPF) { plan = planFromPF[key]; planSrc = 'из Воронки'; }
       else if (ex && ex.rows) {
         const old = ex.rows.find(r => normName(r.name) === key);
         if (old && old.plan !== '' && old.plan != null) { plan = old.plan; planSrc = 'из прошлой записи'; }
@@ -347,6 +400,28 @@
     plan.querySelector('textarea').value = S.planText[feed];
     sec.appendChild(plan);
 
+    // план из Воронки: строки и их связь со строками расчёта
+    const pfr = pfRows(feed, ym, maps, lineNamesFor(feed, ym));
+    if (pfr.length) {
+      const pd = h('details', {class: 'up-details'});
+      const unl = pfr.filter(r => !r.line && r.planRub > 0).length;
+      pd.appendChild(h('summary', {text: 'План из Воронки (' + pfr.length + ' строк)' + (unl ? ' · не связано с расчётом: ' + unl : '')}));
+      const pt = h('table', {class: 'up-table'});
+      pt.appendChild(h('thead', {}, h('tr', {}, h('th', {text: 'Строка в Воронке'}), h('th', {class: 'num', text: 'План, ₽'}), h('th', {class: 'num', text: 'Факт, ₽'}), h('th', {class: 'num', text: 'План, %'}), h('th', {text: 'Строка расчёта'}))));
+      const pb = h('tbody');
+      pfr.forEach(r => {
+        const sel = h('select', {onchange: ev => { const m = loadMaps(); m.planRows[feed][r.rowId] = ev.target.value; saveMaps(m); render(true); }});
+        sel.appendChild(h('option', {value: '', text: '— не учитывать —'}));
+        lineNamesFor(feed, ym).forEach(n => { const o = h('option', {value: n, text: n}); if (n === r.line) o.selected = true; sel.appendChild(o); });
+        pb.appendChild(h('tr', {class: !r.line && r.planRub > 0 ? 'up-unmapped' : ''},
+          h('td', {text: r.name + (r.isGroup ? ' (группа)' : '')}), h('td', {class: 'num', text: rub(r.planRub).replace(' ₽', '')}),
+          h('td', {class: 'num', text: rub(r.factRub).replace(' ₽', '')}), h('td', {class: 'num', text: r.pct == null ? '—' : String(r.pct)}), h('td', {}, sel)));
+      });
+      pt.appendChild(pb); pd.appendChild(pt);
+      if (unl) pd.open = true;
+      sec.appendChild(pd);
+    }
+
     // результат
     const ymm = ym;
     const tbl = h('table', {class: 'up-table up-result'});
@@ -450,6 +525,29 @@
     return sec;
   }
 
+  function renderPFStatus(ym) {
+    const sec = h('div', {class: 'card up-feed'});
+    sec.appendChild(h('h2', {text: 'План-факт из Воронки'}));
+    const m = pfMonth(ym);
+    const now = new Date(); now.setHours(now.getHours() + 3);                       // московское время
+    const partial = ym === now.toISOString().slice(0, 7);
+    let msg;
+    if (PF.loading) msg = 'Загружаю…';
+    else if (PF.error) msg = 'Не удалось получить план: ' + PF.error;
+    else if (!PF.data) msg = 'Ещё не загружено.';
+    else if (!m) msg = 'За ' + ym + ' в Воронке данных нет (доступны: ' + Object.keys(PF.data.months || {}).sort().join(', ') + ').';
+    else {
+      const ll = m.lastLoads || {};
+      msg = 'За ' + ym + ': ' + m.rows.length + ' строк. Данные Воронки от ' + (m.generatedAt || '—').slice(0, 16).replace('T', ' ') + ' UTC · площадки загружены: ' +
+        ['wb', 'ozon', 'ym'].map(k => k.toUpperCase() + ' ' + String(ll[k] || '—').slice(0, 16).replace('T', ' ')).join(', ') + '.';
+    }
+    sec.appendChild(h('p', {class: 'up-file-meta', text: msg}));
+    if (m && partial) sec.appendChild(h('p', {class: 'up-warn', text: 'Месяц ещё не закончен: факт неполный, а план целый — «План, %» сейчас занижен. Для расчёта берите данные после конца месяца.'}));
+    if (m) sec.appendChild(h('p', {class: 'up-file-meta', text: 'Факт в Воронке — это заказы (как на вкладке «План и факт»). План подставляется в строки расчёта сам; вставленный вручную план-факт и ручные правки главнее.'}));
+    sec.appendChild(h('button', {class: 'up-btn ghost', onclick: () => loadPlanFact(), text: 'Обновить план из Воронки'}));
+    return sec;
+  }
+
   function render(keepFocus) {
     const ym = currentMonth();
     S.month = ym;
@@ -461,6 +559,7 @@
     // сохраняем положение прокрутки и фокус при перерисовке по вводу
     const y = window.scrollY;
     out.innerHTML = '';
+    out.appendChild(renderPFStatus(ym));
     Object.keys(FEEDS).forEach(feed => out.appendChild(renderFeed(feed, ym)));
     out.appendChild(renderRop(ym));
     if (keepFocus) window.scrollTo(0, y);
@@ -544,6 +643,7 @@
     document.getElementById('up-clear').addEventListener('click', () => { S.files = []; S.opiu = []; render(); });
     document.getElementById('up-replace').addEventListener('change', () => render());
     render();
+    loadPlanFact();
     try {
       const done = JSON.parse(sessionStorage.getItem('upJustApplied') || 'null');
       if (done) {
@@ -556,6 +656,6 @@
     } catch (e) {}
   }
 
-  window.UploadTab = {parsePlanText, weeksOfMonth, normName, addFiles, state: S, render};
+  window.UploadTab = {pfState: PF, loadPlanFact, parsePlanText, weeksOfMonth, normName, addFiles, state: S, render};
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

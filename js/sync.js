@@ -244,8 +244,16 @@
     if (this === window.localStorage && STATE_KEYS.indexOf(k) >= 0) schedule();
   };
 
+  // прочитать любой файл репозитория (например data/planfact.json); null, если файла нет
+  async function readFile(path) {
+    const s = Object.assign({}, loadSettings(), {path});
+    if (!configured(s)) throw new Error('GitHub не подключён');
+    const r = await fetchRemote(s);
+    return r.exists ? r.text : null;
+  }
+
   window.GitSync = {
-    STATE_KEYS, loadSettings, saveSettings, configured, collectState, applyState,
+    readFile, STATE_KEYS, loadSettings, saveSettings, configured, collectState, applyState,
     push, pull, check, flush, listBackups, makeBackup, restoreBackup, onStatus: fn => listeners.push(fn),
   };
 })();
