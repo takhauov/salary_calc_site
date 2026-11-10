@@ -767,13 +767,14 @@
       <div class="summary-mini">
         <div class="item"><div class="label">Аванс всего</div><div class="value" id="as-mini-advance">0 ₽</div></div>
         <div class="item"><div class="label">Доплата за закупки (1%)</div><div class="value" id="as-mini-purchase">0 ₽</div></div>
+        <div class="item"><div class="label">Премия (блогеры + закупки + школы)</div><div class="value" id="as-mini-prem">0 ₽</div></div>
         <div class="item"><div class="label">ЗП официально</div><div class="value" id="as-mini-salof">0 ₽</div></div>
         <div class="item"><div class="label">Итого начислено</div><div class="value" id="as-mini-total">0 ₽</div></div>
       </div>
     </div>
     <div class="tariff-note paid-note" data-source="as" style="margin-top:8px;"></div>
 
-    <p class="foot-note">Аванс = 11 000 ₽ (неофициально) + официальный аванс. ЗП неофициально = 10 000 ₽ + доплата за блогеров + 1% от объёма закупки + доплата за поиск товара для школ. Официальные суммы вводятся вручную.</p>
+    <p class="foot-note">Аванс = 11 000 ₽ (неофициально) + официальный аванс. ЗП неофициально = 10 000 ₽ + доплата за блогеров + 1% от объёма закупки + доплата за поиск товара для школ. В ведомости доплаты идут в колонку «Премия», а в «ЗП неоф.» — 10 000 ₽. Официальные суммы вводятся вручную.</p>
   </main>
 </div>
 
@@ -2484,6 +2485,7 @@ function asRender() {
   document.getElementById('as-salneof-value').textContent = fmt(r.salNeof);
   document.getElementById('as-mini-advance').textContent = fmt(r.advOf + r.advNeof);
   document.getElementById('as-mini-purchase').textContent = fmt(r.purchaseBonus);
+  document.getElementById('as-mini-prem').textContent = fmt(r.salNeof - AS_BASE_SALARY);
   document.getElementById('as-mini-salof').textContent = fmt(r.salOf);
   document.getElementById('as-mini-total').textContent = fmt(r.total);
 }
@@ -2513,7 +2515,8 @@ function asGetAutoData(ym) {
   const h = asLoadHistoryRaw()[ym];
   if (!h) return null;
   const r = asCalc(asWithAuto(h, ym));
-  return {advOf: r.advOf, advNeof: r.advNeof, salOf: r.salOf, salNeof: r.salNeof};
+  // в ведомость: ЗП неоф. — фикс 10 000, а доплаты (блогеры + 1% закупок + школы) — в колонку «Премия»
+  return {advOf: r.advOf, advNeof: r.advNeof, salOf: r.salOf, salNeof: AS_BASE_SALARY, prem: r.salNeof - AS_BASE_SALARY};
 }
 
 function asFillForm(entry) {
