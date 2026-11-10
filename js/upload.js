@@ -157,6 +157,58 @@
     return names;
   }
 
+  // ---------- экономика из Оцифровки (data/economics.json, раз в сутки обновляет GitHub Actions) ----------
+  const EC = {data: null, error: '', loading: false};
+  async function loadEconomics() {
+    if (EC.loading) return;
+    EC.loading = true; EC.error = '';
+    try {
+      if (!window.GitSync || !GitSync.configured()) throw new Error('подключите GitHub (кнопка «GitHub» сверху), тогда данные подтянутся сами');
+      const text = await GitSync.readFile('data/economics.json');
+      EC.data = text ? JSON.parse(text) : null;
+      if (!EC.data) EC.error = 'файл data/economics.json пока не создан — запустите «Экономика из Оцифровки» в Actions репозитория';
+    } catch (e) { EC.error = e.message || String(e); }
+    EC.loading = false;
+    S.apiMonth = '';                                   // заново применить к выбранному месяцу
+    render(true);
+  }
+  function ecMonth(ym) { return EC.data && EC.data.months && EC.data.months[ym] ? EC.data.months[ym] : null; }
+  function ruDate(iso) { return iso.slice(8, 10) + '.' + iso.slice(5, 7); }
+  // превращаем ответ Оцифровки в те же «кабинеты» и «ОПиУ», что дают загруженные файлы; загруженные вручную файлы главнее
+  function applyEconomics(ym) {
+    S.files = S.files.filter(f => !f.fromApi);
+    S.opiu = S.opiu.filter(o => !o.fromApi);
+    S.apiMonth = ym;
+    const m = ecMonth(ym);
+    if (!m) return;
+    const period = {from: m.from, to: m.to, ym, full: !!m.full, label: ruDate(m.from) + '–' + ruDate(m.to) + '.' + m.to.slice(0, 4)};
+    const maps = loadMaps();
+    const cabs = new Map();
+    (m.articles || []).forEach(r => {
+      if (r.noArticle || !r.article || !r.company) return;
+      const ck = r.company + '|' + r.mp;
+      const cab = cabs.get(ck) || {entity: r.company, market: r.mp === 'ozon' ? 'oz' : r.mp, map: new Map()};
+      cabs.set(ck, cab);
+      const key = String(r.article).trim().toLowerCase();
+      const cur = cab.map.get(key) || {key, name: String(r.article).trim(), profit: 0, revenue: 0, units: 0, ads: 0, title: r.name || ''};
+      cur.profit += r.operatingProfit || 0; cur.revenue += r.revenueBeforeSpp || 0; cur.units += r.units || 0; cur.ads += r.ads || 0;
+      cab.map.set(key, cur);
+    });
+    cabs.forEach(cab => {
+      if (S.files.some(f => f.parsed.entity === cab.entity && f.parsed.market === cab.market)) return;   // вручную загруженный главнее
+      const articles = Array.from(cab.map.values());
+      const totals = articles.reduce((t, a) => ({profit: t.profit + a.profit, revenue: t.revenue + a.revenue}), {profit: 0, revenue: 0});
+      if (Math.abs(totals.profit) < 1 && totals.revenue < 1) return;
+      const parsed = {fileName: 'Оцифровка', period, entity: cab.entity, market: cab.market, articles, totals, gross: {}};
+      S.files.push({id: S.nextId++, name: 'Оцифровка', fromApi: true, parsed, role: Object.assign({}, entityRole(maps, cab.entity, cab.market))});
+    });
+    if (!S.opiu.some(o => o.period && o.period.ym === ym)) {
+      const gross = {};
+      (m.companies || []).forEach(c => { if (c.company && typeof c.grossMargin === 'number') gross[c.company] = (gross[c.company] || 0) + c.grossMargin; });
+      if (Object.keys(gross).length) S.opiu.push({id: S.nextId++, name: 'Оцифровка', fromApi: true, period, gross});
+    }
+  }
+
   // ---------- состояние ----------
   const S = {
     month: '',
@@ -274,7 +326,7 @@
         const any = ReportParser.parseAny(XLSX, buf, file.name, {type: 'array'});
         const maps = loadMaps();
         if (any.kind === 'opiu') {
-          S.opiu = S.opiu.filter(o => !(o.period && any.period && o.period.label === any.period.label));
+          S.opiu = S.opiu.filter(o => !(o.period && any.period && (o.period.label === any.period.label || (o.fromApi && o.period.ym === any.period.ym))));
           S.opiu.push({id: S.nextId++, name: file.name, period: any.period, gross: any.gross});
           if (any.period && any.period.ym) setMonth(any.period.ym);
         } else if (any.kind === 'multi') {
@@ -541,6 +593,23 @@
     return sec;
   }
 
+  function renderECStatus(ym) {
+    const sec = h('div', {class: 'card up-feed'});
+    sec.appendChild(h('h2', {text: 'Экономика из Оцифровки'}));
+    const m = ecMonth(ym);
+    let msg;
+    if (EC.loading) msg = 'Загружаю…';
+    else if (EC.error) msg = 'Не удалось получить данные: ' + EC.error;
+    else if (!EC.data) msg = 'Ещё не загружено.';
+    else if (!m) msg = 'За ' + ym + ' в Оцифровке данных нет (доступны: ' + Object.keys(EC.data.months || {}).sort().join(', ') + ').';
+    else msg = 'За ' + ym + ': период ' + ruDate(m.from) + '–' + ruDate(m.to) + ', артикулов ' + (m.articles || []).length + ', компаний ' + (m.companies || []).length +
+      '. Данные Оцифровки от ' + (m.generatedAt || '—').slice(0, 16).replace('T', ' ') + ' UTC. Они уже подставлены ниже; файлы, загруженные вручную, главнее.';
+    sec.appendChild(h('p', {class: 'up-file-meta', text: msg}));
+    if (m && !m.full) sec.appendChild(h('p', {class: 'up-warn', text: 'Месяц ещё не закончен: данные только до ' + ruDate(m.to) + ', итоги неполные. Для расчёта берите данные после конца месяца.'}));
+    sec.appendChild(h('button', {class: 'up-btn ghost', onclick: () => loadEconomics(), text: 'Обновить из Оцифровки'}));
+    return sec;
+  }
+
   function renderPFStatus(ym) {
     const sec = h('div', {class: 'card up-feed'});
     sec.appendChild(h('h2', {text: 'План-факт из Воронки'}));
@@ -567,6 +636,7 @@
   function render(keepFocus) {
     const ym = currentMonth();
     S.month = ym;
+    if (EC.data && S.apiMonth !== ym) applyEconomics(ym);
     const wk = weeksOfMonth(ym);
     const hint = document.getElementById('up-weeks-hint');
     if (hint) hint.textContent = 'Недели для среза в Excel за выбранный месяц (правило «4+ дня»): ' + (wk.length ? wk[0] + '–' + wk[wk.length - 1] : '—');
@@ -575,6 +645,7 @@
     // сохраняем положение прокрутки и фокус при перерисовке по вводу
     const y = window.scrollY;
     out.innerHTML = '';
+    out.appendChild(renderECStatus(ym));
     out.appendChild(renderPFStatus(ym));
     Object.keys(FEEDS).forEach(feed => out.appendChild(renderFeed(feed, ym)));
     out.appendChild(renderRop(ym));
@@ -660,6 +731,7 @@
     document.getElementById('up-replace').addEventListener('change', () => render());
     render();
     loadPlanFact();
+    loadEconomics();
     try {
       const done = JSON.parse(sessionStorage.getItem('upJustApplied') || 'null');
       if (done) {
@@ -672,6 +744,6 @@
     } catch (e) {}
   }
 
-  window.UploadTab = {pfState: PF, loadPlanFact, parsePlanText, weeksOfMonth, normName, addFiles, state: S, render};
+  window.UploadTab = {ecState: EC, pfState: PF, loadPlanFact, parsePlanText, weeksOfMonth, normName, addFiles, state: S, render};
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
