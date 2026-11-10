@@ -2349,10 +2349,38 @@ function asApplyAuto() {
 }
 window.addEventListener('eco-loaded', () => { asApplyAuto(); if (typeof vedRender === 'function') { try { vedRender(); } catch (e) {} } asRenderHistory(); });
 asMonthInput.addEventListener('change', () => {
-  const e = asLoadHistoryRaw()[asMonthInput.value];
-  if (e) asFillForm(e); else { asTouched = false; asPurchaseVolumeInput.value = ''; asApplyAuto(); }
+  asFlush();                                    // не потерять набранное в прошлом месяце
+  asActiveMonth = asMonthInput.value;
+  const e2 = asLoadHistoryRaw()[asMonthInput.value];
+  if (e2) asFillForm(e2); else asFillForm({});  // для нового месяца — чистая форма (закупки подставятся из Оцифровки)
 });
 asPurchaseVolumeInput.addEventListener('input', () => { asTouched = true; asApplyAuto(); });
+
+// Автосохранение: всё, что вводите, записывается в расчёт выбранного месяца само (кнопка внизу остаётся для подтверждения)
+let asSaveTimer = null;
+let asActiveMonth = null;                        // месяц, которому принадлежит содержимое формы
+function asSaveCurrent() {
+  const ym = asActiveMonth || asMonthInput.value;
+  if (!ym) return;
+  const hist = asLoadHistoryRaw();
+  const cur = asCurrentInput();
+  hist[ym] = {
+    officialAdvance: parseFloat(cur.officialAdvance) || 0,
+    officialSalary: parseFloat(cur.officialSalary) || 0,
+    bloggers: parseFloat(cur.bloggers) || 0,
+    purchaseVolume: parseFloat(cur.purchaseVolume) || 0,
+    purchaseManual: asTouched,
+    schools: parseFloat(cur.schools) || 0,
+  };
+  asSaveHistoryRaw(hist);
+  asRenderHistory();
+}
+function asScheduleSave() { clearTimeout(asSaveTimer); asSaveTimer = setTimeout(() => { asSaveTimer = null; asSaveCurrent(); }, 400); }
+function asFlush() { if (asSaveTimer) { clearTimeout(asSaveTimer); asSaveTimer = null; asSaveCurrent(); } }
+[asOfficialAdvanceInput, asOfficialSalaryInput, asBloggersInput, asPurchaseVolumeInput, asSchoolsInput].forEach(el => el.addEventListener('input', asScheduleSave));
+document.getElementById('as-purchase-auto-btn').addEventListener('click', asScheduleSave);
+document.addEventListener('click', ev => { if (ev.target.closest && ev.target.closest('.main-btn, .tab-btn')) asFlush(); }, true);
+window.addEventListener('beforeunload', asFlush);
 document.getElementById('as-purchase-auto-btn').addEventListener('click', () => { asTouched = false; asApplyAuto(); });
 
 function asCurrentInput() {
@@ -2455,7 +2483,9 @@ function asRenderHistory() {
     item.appendChild(removeBtn);
 
     item.addEventListener('click', () => {
+      asFlush();
       asMonthInput.value = ym;
+      asActiveMonth = ym;
       asFillForm(entry);
       asRender();
     });
@@ -2465,19 +2495,9 @@ function asRenderHistory() {
 }
 
 document.getElementById('as-save-calc-btn').addEventListener('click', () => {
-  const ym = asMonthInput.value;
-  const hist = asLoadHistoryRaw();
-  const cur = asCurrentInput();
-  hist[ym] = {
-    officialAdvance: parseFloat(cur.officialAdvance) || 0,
-    officialSalary: parseFloat(cur.officialSalary) || 0,
-    bloggers: parseFloat(cur.bloggers) || 0,
-    purchaseVolume: parseFloat(cur.purchaseVolume) || 0,
-    purchaseManual: asTouched,
-    schools: parseFloat(cur.schools) || 0,
-  };
-  asSaveHistoryRaw(hist);
-  asRenderHistory();
+  clearTimeout(asSaveTimer); asSaveTimer = null;
+  asActiveMonth = asMonthInput.value;
+  asSaveCurrent();
   const btn = document.getElementById('as-save-calc-btn');
   const original = btn.textContent;
   btn.textContent = 'Сохранено ✓';
@@ -2495,6 +2515,7 @@ if (asInitialMonths.length > 0) {
   asMonthInput.value = latestYm;
   asFillForm(asInitialHist[latestYm]);
 }
+asActiveMonth = asMonthInput.value;
 asRender();
 
 // ---------- ВЕДОМОСТЬ: подтяжка данных из других вкладок ----------
