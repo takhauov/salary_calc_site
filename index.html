@@ -268,6 +268,16 @@
   #gh-panel .gh-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
   #gh-status { font-size: 13px; color: var(--muted); }
   #gh-status.ok { color: #2F8F4E; } #gh-status.warn { color: var(--catB); } #gh-status.err { color: var(--catC); }
+  #access-panel { display: none; max-width: 1180px; margin: 0 auto 16px auto; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; }
+  #access-panel.open { display: block; }
+  #access-panel label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 2px; }
+  #access-panel input[type=text] { width: 100%; font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; }
+  #access-panel .gh-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
+  .acc-row { display: grid; grid-template-columns: 190px minmax(150px, 220px) auto auto auto; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+  .acc-row .acc-msg { grid-column: 1 / -1; }
+  .acc-who { color: var(--muted); font-size: 13px; }
+  .acc-msg { font-size: 13px; color: var(--muted); word-break: break-all; }
+  .acc-msg.ok { color: #2F8F4E; } .acc-msg.warn { color: var(--catB); } .acc-msg.err { color: var(--catC); }
   #gh-banner { display: none; max-width: 1180px; margin: 0 auto 12px auto; background: #F3EBD8; border: 1px solid #E3D3A8; color: #6C5410; border-radius: 8px; padding: 9px 14px; font-size: 13.5px; }
 </style>
 </head>
@@ -277,6 +287,7 @@
   <button class="tab-btn" id="backup-export-btn">⭳ Экспорт бэкапа</button>
   <button class="tab-btn" id="backup-import-btn">⭱ Импортировать бэкап</button>
   <button class="tab-btn" id="gh-toggle-btn">☁ GitHub</button>
+  <button class="tab-btn" id="access-toggle-btn">👥 Доступ сотрудников</button>
   <input type="file" id="backup-import-file" accept="application/json" style="display:none;">
   <span class="tariff-note" id="backup-status" style="background:none; padding:0; margin:0;"></span>
 </div>
@@ -307,6 +318,20 @@
     <span style="font-size:12px;color:var(--muted)">Авто: раз в день, хранятся последние 60 (папка data/backups)</span>
   </div>
   <div id="gh-backups" style="margin-top:8px;font-size:13px"></div>
+</div>
+
+<div id="access-panel">
+  <strong>Доступ сотрудников (только просмотр своего расчёта)</strong>
+  <p class="subtitle" style="margin:4px 0 12px 0;">Для каждого сотрудника задайте пароль и нажмите «Опубликовать». Сотрудник откроет свою ссылку, введёт пароль и увидит только свой расчёт и выплаты. Пароли хранятся только в этом браузере. Снимок в публичном репозитории зашифрован паролем сотрудника.</p>
+  <div class="gh-grid" style="max-width:360px;">
+    <div><label>Репозиторий сайта (публичный)</label><input type="text" id="acc-site-repo" placeholder="salary_calc_site"></div>
+  </div>
+  <div class="gh-row">
+    <label style="display:flex;gap:6px;align-items:center;margin:0;"><input type="checkbox" id="acc-auto"> обновлять снимки автоматически после сохранения данных</label>
+    <button class="up-btn ghost" id="acc-pub-all">Опубликовать всех</button>
+    <span id="acc-status" class="acc-msg"></span>
+  </div>
+  <div id="acc-list" style="margin-top:12px;"></div>
 </div>
 
 <div class="tabs main-tabs">
@@ -3066,5 +3091,6 @@ vedRender();
 <script src="js/sync-ui.js"></script>
 <script src="js/eco.js"></script>
 <script src="js/upload.js"></script>
+<script src="js/access.js"></script>
 </body>
 </html>

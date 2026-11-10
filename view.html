@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Мой расчёт ЗП</title>
+<style>
+  :root { --bg:#EFEDE7; --card:#fff; --ink:#1B1B1B; --muted:#6B6B63; --line:#E3E0D8; --accent:#1F5F54; --ok:#2F8F4E; --err:#B3412F; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.45 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 18px 16px 40px; }
+  h1 { font-size: 22px; margin: 6px 0 2px; }
+  .sub { color: var(--muted); margin: 0 0 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin-bottom: 14px; }
+  .login { max-width: 420px; margin: 60px auto 0; }
+  input[type=password] { width: 100%; font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; margin: 10px 0; }
+  button { font: inherit; padding: 10px 16px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; cursor: pointer; }
+  button:disabled { opacity: .6; }
+  label.rem { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 13.5px; margin-bottom: 12px; }
+  #msg { margin-top: 10px; font-size: 14px; color: var(--muted); } #msg.err { color: var(--err); }
+  .months { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .months button { background: #fff; color: var(--ink); border: 1px solid var(--line); padding: 7px 12px; text-transform: capitalize; }
+  .months button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .head .lab { color: var(--muted); font-size: 13.5px; } .head .val { font-size: 34px; font-weight: 700; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-top: 12px; }
+  .grid .lab { color: var(--muted); font-size: 12.5px; } .grid .val { font-weight: 600; font-size: 17px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 8px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; white-space: normal; }
+  th { color: var(--muted); font-weight: 500; font-size: 12.5px; }
+  .scroll { overflow-x: auto; }
+  .pay { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .pay:last-child { border-bottom: 0; }
+  .tag { font-size: 12.5px; padding: 2px 8px; border-radius: 10px; background: #EEE; color: var(--muted); margin-left: 8px; }
+  .tag.paid { background: #DDF0E3; color: var(--ok); }
+  h2 { font-size: 16px; margin: 0 0 8px; }
+  .note { color: var(--muted); font-size: 13px; margin-top: 8px; }
+  .top { display:flex; justify-content: space-between; align-items: center; }
+  .link { background: none; color: var(--muted); padding: 4px 8px; border: 0; text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="login" class="card login">
+    <h1>Мой расчёт ЗП</h1>
+    <p class="sub">Введите пароль, который вам выдали.</p>
+    <form id="form">
+      <input type="password" id="pw" autocomplete="current-password" placeholder="Пароль" autofocus>
+      <label class="rem"><input type="checkbox" id="rem"> запомнить на этом устройстве</label>
+      <button type="submit" id="go">Открыть</button>
+    </form>
+    <div id="msg"></div>
+  </div>
+  <div id="app" style="display:none"></div>
+</div>
+<script src="js/view.js"></script>
+</body>
+</html>

@@ -18,6 +18,7 @@
   let busy = false;
   let dirty = false;
   const listeners = [];
+  const savedListeners = [];
 
   function loadSettings() {
     try { return Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); }
@@ -127,6 +128,7 @@
       dirty = false;
       status('Сохранено в GitHub ✓ ' + new Date().toLocaleTimeString('ru-RU'), 'ok');
       dailyBackup().catch(() => {});
+      savedListeners.forEach(fn => { try { fn(); } catch (e) {} });
       return {ok: true};
     } finally {
       busy = false;
@@ -254,6 +256,6 @@
 
   window.GitSync = {
     readFile, STATE_KEYS, loadSettings, saveSettings, configured, collectState, applyState,
-    push, pull, check, flush, listBackups, makeBackup, restoreBackup, onStatus: fn => listeners.push(fn),
+    push, pull, check, flush, listBackups, makeBackup, restoreBackup, onStatus: fn => listeners.push(fn), onSaved: fn => savedListeners.push(fn),
   };
 })();
