@@ -392,6 +392,7 @@
         <div class="item"><div class="label">Начислено всего</div><div class="value" id="mini-total">0 ₽</div></div>
       </div>
     </div>
+    <div class="tariff-note paid-note" data-source="wb" style="margin-top:8px;"></div>
 
     <div class="card">
       <table id="rows-tbl">
@@ -496,6 +497,7 @@
         <div class="item"><div class="label">Начислено всего</div><div class="value" id="oz-mini-total">0 ₽</div></div>
       </div>
     </div>
+    <div class="tariff-note paid-note" data-source="oz" style="margin-top:8px;"></div>
 
     <div class="summary-bar" style="margin-top:-8px;">
       <div class="off-split">
@@ -594,6 +596,7 @@
         <div class="item"><div class="label">Начислено всего</div><div class="value" id="ym-mini-total">0 ₽</div></div>
       </div>
     </div>
+    <div class="tariff-note paid-note" data-source="ym" style="margin-top:8px;"></div>
 
     <div class="summary-bar" style="margin-top:-8px;">
       <div class="off-split">
@@ -677,6 +680,7 @@
         <div class="item"><div class="label">Начислено всего</div><div class="value" id="rop-mini-total">0 ₽</div></div>
       </div>
     </div>
+    <div class="tariff-note paid-note" data-source="rop" style="margin-top:8px;"></div>
 
     <div class="card">
       <table id="rop-rows-tbl">
@@ -754,6 +758,7 @@
         <div class="item"><div class="label">Итого начислено</div><div class="value" id="as-mini-total">0 ₽</div></div>
       </div>
     </div>
+    <div class="tariff-note paid-note" data-source="as" style="margin-top:8px;"></div>
 
     <p class="foot-note">Аванс = 11 000 ₽ (неофициально) + официальный аванс. ЗП неофициально = 10 000 ₽ + доплата за блогеров + 1% от объёма закупки + доплата за поиск товара для школ. Официальные суммы вводятся вручную.</p>
   </main>
@@ -1420,6 +1425,7 @@ function showTab(id) {
     if (el) el.style.display = t === id ? 'grid' : 'none';
   });
   if (isVed && typeof vedRender === 'function') vedRender();
+  if (!isVed && typeof refreshPaidNotes === 'function') refreshPaidNotes();
 }
 document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
   btn.addEventListener('click', () => showTab(btn.dataset.tab));
@@ -2793,6 +2799,46 @@ function vedLoadMonth(ym) {
 
 document.getElementById('ved-add-row').addEventListener('click', () => vedAddRow());
 vedMonthInput.addEventListener('input', () => { vedFlush(); vedLoadMonth(vedMonthInput.value); });
+
+
+// ---------- Выплаты из ведомости в калькуляторе (только справка, расчёт не меняется) ----------
+const VED_FIELD_NAMES = {advOf: 'аванс оф.', advNeof: 'аванс неоф.', salOf: 'ЗП оф.', salNeof: 'ЗП неоф.', prem: 'премия'};
+function vedPayoutInfo(source, ym) {
+  try { if (typeof vedFlush === 'function') vedFlush(); } catch (e) {}
+  const roster = (vedLoadHistoryRaw()[ym] || {}).roster;
+  if (!roster) return null;
+  const row = roster.map(r => vedNewRow(r)).find(r => r.source === source);
+  if (!row) return null;
+  const eff = vedEffective(row, ym);
+  let total = 0, paid = 0;
+  const paidParts = [];
+  VED_FIELDS.forEach(f => {
+    const v = parseFloat(eff[f].value) || 0;
+    total += v;
+    if (row.paid && row.paid[f] && v) { paid += v; paidParts.push(VED_FIELD_NAMES[f] + ' ' + fmt(v)); }
+  });
+  const auto = vedGetAutoData(source, ym);
+  const calc = auto ? VED_FIELDS.reduce((t, f) => t + (parseFloat(auto[f]) || 0), 0) : null;
+  return {total, paid, paidParts, calc};
+}
+const PAID_MONTH_INPUT = {wb: 'period-month', oz: 'oz-period-month', ym: 'ym-period-month', rop: 'rop-period-month', as: 'as-period-month'};
+function refreshPaidNotes() {
+  document.querySelectorAll('.paid-note').forEach(el => {
+    const src = el.dataset.source;
+    const ym = document.getElementById(PAID_MONTH_INPUT[src]).value;
+    const info = vedPayoutInfo(src, ym);
+    if (!info) { el.textContent = 'Ведомость за этот месяц ещё не заполнена, выплат нет.'; return; }
+    let t = 'Выплачено по ведомости: ' + fmt(info.paid) + ' из ' + fmt(info.total);
+    if (info.total > 0 && Math.abs(info.paid - info.total) < 0.5) t += ' — выплачено полностью ✓';
+    else if (info.paidParts.length) t += ' (' + info.paidParts.join(', ') + ')';
+    if (info.calc !== null && Math.abs(info.calc - info.total) > 2) t += '. Сумма в ведомости отличается от расчёта на ' + fmt(info.total - info.calc) + ' (правки в ведомости).';
+    el.textContent = t;
+  });
+}
+Object.values(PAID_MONTH_INPUT).forEach(id => {
+  const el = document.getElementById(id);
+  ['input', 'change'].forEach(ev => el.addEventListener(ev, () => setTimeout(refreshPaidNotes, 0)));
+});
 
 // ---------- ВЕДОМОСТЬ: история ----------
 
