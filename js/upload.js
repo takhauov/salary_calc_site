@@ -12,9 +12,9 @@
   const NONE = '';
 
   const DEFAULT_LINES = {
-    wb: ['Душ зелёный', 'Душ чёрный', 'Душ серый', 'Культиватор со штангой', 'Пила 8 дюймов', 'Секатор', 'Набор медиум', 'Краскопульт', 'Краскопульт 498'],
-    oz: ['Душ зелёный', 'Душ чёрный', 'Душ серый', 'Культиватор со штангой', 'Культиватор', 'Секатор', 'Штанга для инструментов', 'Набор люкс', 'Набор медиум', 'Пила 8 дюймов', 'Краскопульт', 'Краскопульт 498'],
-    ym: ['Душ зелёный', 'Душ серый', 'Душ чёрный', 'Культиватор со штангой', 'Набор медиум', 'Пила 8 дюймов', 'Секатор', 'Штанга для инструментов', 'Краскопульт', 'Краскопульт 498'],
+    wb: ['Душ зелёный', 'Душ чёрный', 'Душ серый', 'Культиватор со штангой', 'Пила 8 дюймов', 'Секатор', 'Набор медиум', 'Краскопульт', 'Краскопульт 498', 'Секатор пистолет', 'Споттер'],
+    oz: ['Душ зелёный', 'Душ чёрный', 'Душ серый', 'Культиватор со штангой', 'Культиватор', 'Секатор', 'Штанга для инструментов', 'Набор люкс', 'Набор медиум', 'Пила 8 дюймов', 'Краскопульт', 'Краскопульт 498', 'Секатор пистолет', 'Споттер'],
+    ym: ['Душ зелёный', 'Душ серый', 'Душ чёрный', 'Культиватор со штангой', 'Набор медиум', 'Пила 8 дюймов', 'Секатор', 'Штанга для инструментов', 'Краскопульт', 'Краскопульт 498', 'Секатор пистолет', 'Споттер'],
   };
   const DEFAULT_ARTICLES = {wb: {}, oz: {}, ym: {}};
   const DEFAULT_ENTITIES = {};
@@ -34,7 +34,14 @@
     const own = maps.articles[feed] || {};
     if (key in own) return own[key];
     const d = DEFAULT_ARTICLES[feed] || {};
-    return key in d ? d[key] : NONE;
+    if (key in d) return d[key];
+    // однозначные новые товары определяем по названию артикула
+    const k = String(key).toLowerCase().replace(/[_\-]+/g, ' ');
+    if (/споттер/.test(k)) return 'Споттер';
+    if (/секатор пистолет/.test(k)) return 'Секатор пистолет';
+    if (/медиум/.test(k)) return 'Набор медиум';
+    if (/пила ?8/.test(k)) return 'Пила 8 дюймов';
+    return NONE;
   }
   function entityRole(maps, entity, market) {
     const k = String(entity || '').toLowerCase();
@@ -115,7 +122,16 @@
     lineNames.forEach(n => { byNorm[normName(n)] = n; });
     return m.rows.filter(r => r.mp === PF_MP[feed] && (r.planRub > 0 || r.factRub > 0)).map(r => {
       const own = maps.planRows[feed] || {};
-      let line = r.rowId in own ? own[r.rowId] : (byNorm[normName(r.name)] || '');
+      let line = '';
+      if (r.rowId in own) line = own[r.rowId];
+      else {
+        const nm = normName(r.name).replace(/\s+(вб|озон|ям|wb|ozon)$/, '');
+        line = byNorm[nm] || '';
+        if (!line) {                                       // «8 дюймов» → «Пила 8 дюймов», «Медиум» → «Набор медиум» (если подходит ровно одна строка)
+          const cand = lineNames.filter(n => (' ' + normName(n) + ' ').includes(' ' + nm + ' '));
+          if (cand.length === 1) line = cand[0];
+        }
+      }
       return Object.assign({}, r, {line, pct: r.planRub > 0 ? Math.round(r.factRub / r.planRub * 1000) / 10 : null});
     });
   }
