@@ -2334,6 +2334,58 @@ if (ropInitialMonths.length > 0) {
 }
 ropRender();
 
+// ---------- Тихое автосохранение калькуляторов (ВБ/Озон/ЯМ/РОП) ----------
+// Если расчёт за этот месяц уже сохранён, правки в форме сразу обновляют сохранённую запись,
+// чтобы ведомость видела актуальные цифры без нажатия «Сохранить расчёт». Новый месяц сохраняется кнопкой.
+// Автосохранение работает только пока месяц в форме совпадает с тем, чей расчёт в ней загружен/сохранён
+// (смена месяца без загрузки из истории автосохранение отключает — чужие данные не затираются).
+(function () {
+  const defs = [
+    {tab: 'wb', month: monthInput, histList: 'history-list', saveBtn: 'save-calc-btn', load: loadHistoryRaw, save: saveHistoryRaw, render: renderHistory,
+      build: () => ({oklad: parseFloat(okladInput.value) || 0, manualOklad: manualOklad,
+        rows: rows.map(r => ({name: r.name, profit: r.profit, plan: r.plan, margin: r.margin, drr: r.drr, catOverride: r.catOverride}))})},
+    {tab: 'oz', month: ozMonthInput, histList: 'oz-history-list', saveBtn: 'oz-save-calc-btn', load: ozLoadHistoryRaw, save: ozSaveHistoryRaw, render: ozRenderHistory,
+      build: () => ({oklad: parseFloat(ozOkladInput.value) || 0, extra: parseFloat(ozExtraInput.value) || 0,
+        officialAdvance: parseFloat(ozOfficialAdvanceInput.value) || 0, officialSalary: parseFloat(ozOfficialSalaryInput.value) || 0,
+        advance: parseFloat(ozAdvanceInput.value) || 0,
+        rows: ozRows.map(r => ({name: r.name, profit: r.profit, plan: r.plan, margin: r.margin, catOverride: r.catOverride}))})},
+    {tab: 'ym', month: ymMonthInput, histList: 'ym-history-list', saveBtn: 'ym-save-calc-btn', load: ymLoadHistoryRaw, save: ymSaveHistoryRaw, render: ymRenderHistory,
+      build: () => ({oklad: parseFloat(ymOkladInput.value) || 0, extra: parseFloat(ymExtraInput.value) || 0,
+        officialAdvance: parseFloat(ymOfficialAdvanceInput.value) || 0, officialSalary: parseFloat(ymOfficialSalaryInput.value) || 0,
+        advance: parseFloat(ymAdvanceInput.value) || 0,
+        rows: ymRows.map(r => ({name: r.name, profit: r.profit, plan: r.plan, margin: r.margin, catOverride: r.catOverride}))})},
+    {tab: 'rop', month: ropMonthInput, histList: 'rop-history-list', saveBtn: 'rop-save-calc-btn', load: ropLoadHistoryRaw, save: ropSaveHistoryRaw, render: ropRenderHistory,
+      build: () => ({oklad: parseFloat(ropOkladInput.value) || 0, advance: parseFloat(ropAdvanceInput.value) || 0,
+        officialAdvance: parseFloat(ropOfficialAdvanceInput.value) || 0, officialSalary: parseFloat(ropOfficialSalaryInput.value) || 0,
+        margins: Object.assign({}, ropMargins)})},
+  ];
+  const timers = [];
+  defs.forEach((d, i) => {
+    d.formMonth = d.month.value;      // при загрузке страницы форма заполнена последним сохранённым месяцем
+    const quiet = () => {
+      timers[i] = null;
+      if (d.formMonth === null || d.month.value !== d.formMonth) return;
+      const hist = d.load();
+      if (!hist[d.month.value]) return;  // новый месяц — только кнопкой
+      const entry = d.build();
+      hist[d.month.value] = entry;
+      d.save(hist);
+      d.render();
+    };
+    const schedule = () => { clearTimeout(timers[i]); timers[i] = setTimeout(quiet, 400); };
+    const flush = () => { if (timers[i]) { clearTimeout(timers[i]); quiet(); } };
+    const root = document.getElementById('tab-' + d.tab);
+    root.addEventListener('input', ev => { if (ev.target === d.month) return; schedule(); });
+    root.addEventListener('click', ev => { if (ev.target.closest && ev.target.closest('button')) schedule(); });
+    // загрузка из истории / сохранение кнопкой / очистка — меняют «чей месяц в форме»
+    document.getElementById(d.histList).addEventListener('click', () => setTimeout(() => { d.formMonth = d.month.value; }, 0));
+    document.getElementById(d.saveBtn).addEventListener('click', () => { d.formMonth = d.month.value; });
+    root.querySelectorAll('[data-preset="clear"], [data-oz-preset="clear"], [data-ym-preset="clear"], [data-rop-preset="clear"]').forEach(b => b.addEventListener('click', () => { d.formMonth = null; }));
+    document.addEventListener('click', ev => { if (ev.target.closest && ev.target.closest('.main-btn, .tab-btn')) flush(); }, true);
+    window.addEventListener('beforeunload', flush);
+  });
+})();
+
 // ---------- АССИСТЕНТ: расчёт (фикс 11000/10000 + доплаты) ----------
 
 const asMonthInput = document.getElementById('as-period-month');
@@ -2652,7 +2704,9 @@ function vedEffective(row, ym) {
     let ov = row.ovr ? row.ovr[f] : undefined;
     // официальный аванс вводится вручную: введённое значение главнее значения из расчёта
     if ((ov === undefined || ov === '' || ov === null) && f === 'advOf' && row[f] !== '' && row[f] !== undefined && row[f] !== null) ov = row[f];
-    const overridden = hasAuto && ov !== undefined && ov !== '' && ov !== null;
+    let overridden = hasAuto && ov !== undefined && ov !== '' && ov !== null;
+    // ручная правка, совпавшая со значением из калькулятора, — уже не правка
+    if (overridden && Math.abs((parseFloat(ov) || 0) - (parseFloat(autoVal) || 0)) < 0.5) overridden = false;
     res[f] = {hasAuto, isDefault, auto: autoVal, overridden, value: overridden ? ov : (hasAuto ? autoVal : row[f])};
   });
   return res;
