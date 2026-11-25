@@ -11,7 +11,7 @@
 (function () {
   const SETTINGS_KEY = 'ghSyncSettings_v1';
   const STATE_KEYS = ['wbSalaryHistory_v1', 'ozonSalaryHistory_v1', 'ozonLoanState_v1', 'ymSalaryHistory_v1',
-    'ropSalaryHistory_v1', 'asSalaryHistory_v1', 'vedSalaryHistory_v1', 'upMappings_v1'];
+    'ropSalaryHistory_v1', 'asSalaryHistory_v1', 'vedSalaryHistory_v1', 'salaryAdvances_v1', 'upMappings_v1'];
   const DEFAULTS = {owner: '', repo: '', branch: 'main', path: 'data/state.json', token: '', auto: true, lastSha: ''};
 
   let timer = null;

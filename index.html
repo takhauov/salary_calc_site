@@ -879,6 +879,7 @@ const BACKUP_KEYS = [
   'ropSalaryHistory_v1',
   'asSalaryHistory_v1',
   'vedSalaryHistory_v1',
+  'salaryAdvances_v1',
   'upMappings_v1',
 ];
 
@@ -2135,7 +2136,7 @@ function ymRenderHistory() {
       ymExtraInput.value = entry.extra || '';
       ymOfficialAdvanceInput.value = entry.officialAdvance !== undefined ? entry.officialAdvance : 5421;
       ymOfficialSalaryInput.value = entry.officialSalary !== undefined ? entry.officialSalary : 8314;
-      ymAdvanceInput.value = entry.advance || 10000;
+      ymAdvanceInput.value = entry.advance ?? 10000;
       ymRows = entry.rows.map(r => ymNewRow(r));
       ymRender();
     });
@@ -2177,7 +2178,7 @@ if (ymInitialMonths.length > 0) {
   ymExtraInput.value = entry.extra || '';
   ymOfficialAdvanceInput.value = entry.officialAdvance !== undefined ? entry.officialAdvance : 5421;
   ymOfficialSalaryInput.value = entry.officialSalary !== undefined ? entry.officialSalary : 8314;
-  ymAdvanceInput.value = entry.advance || 10000;
+  ymAdvanceInput.value = entry.advance ?? 10000;
   ymRows = entry.rows.map(r => ymNewRow(r));
 } else {
   ymAddRow({name: 'Артикул 1'});
@@ -2409,14 +2410,17 @@ ropRender();
       const hist = d.load();
       if (!hist[d.month.value]) return;  // новый месяц — только кнопкой
       const entry = d.build();
-      hist[d.month.value] = entry;
+      hist[d.month.value] = {...hist[d.month.value], ...entry, ...loadAdvances(d.tab, d.month.value)};
       d.save(hist);
       d.render();
     };
     const schedule = () => { clearTimeout(timers[i]); timers[i] = setTimeout(quiet, 400); };
     const flush = () => { if (timers[i]) { clearTimeout(timers[i]); quiet(); } };
     const root = document.getElementById('tab-' + d.tab);
-    root.addEventListener('input', ev => { if (ev.target === d.month) return; schedule(); });
+    root.addEventListener('input', ev => {
+      if (ev.target === d.month || ev.target.matches('[data-advance]')) return;
+      schedule();
+    });
     root.addEventListener('click', ev => { if (ev.target.closest && ev.target.closest('button')) schedule(); });
     // загрузка из истории / сохранение кнопкой / очистка — меняют «чей месяц в форме»
     document.getElementById(d.histList).addEventListener('click', () => setTimeout(() => { d.formMonth = d.month.value; }, 0));
@@ -2732,12 +2736,71 @@ const VED_FIELDS = ['advOf', 'advNeof', 'salOf', 'salNeof', 'prem'];
 // стандартные неофициальные авансы (не меняются из месяца в месяц); подставляются, если за месяц нет расчёта
 const VED_DEFAULT_ADV_NEOF = {wb: 20000, oz: 11000, ym: 10000, rop: 40000, as: 11000};
 
+const ADVANCES_KEY = 'salaryAdvances_v1';
+
+function loadAdvanceState() {
+  try { return JSON.parse(localStorage.getItem(ADVANCES_KEY)) || {}; }
+  catch (e) { return {}; }
+}
+
+function loadAdvances(source, ym) {
+  return loadAdvanceState()[ym]?.[source] || {};
+}
+
+// Введённые авансы хранятся по роли и месяцу, в том числе до первого расчёта КПЭ.
+function bindAdvances(source, month, fields, load, save, render, renderHistory) {
+  function fillAdvances() {
+    const history = load()[month.value];
+    const advances = loadAdvances(source, month.value);
+    Object.entries(fields).forEach(([key, input]) => {
+      input.value = advances[key] ?? history?.[key] ?? input.defaultValue;
+    });
+    render();
+  }
+
+  month.addEventListener('input', fillAdvances);
+  month.addEventListener('change', fillAdvances);
+  const root = document.getElementById('tab-' + source);
+  root.addEventListener('click', ev => {
+    if (ev.target.closest('.preset-btn, .history-item') && !ev.target.closest('.hist-remove')) fillAdvances();
+  });
+  Object.entries(fields).forEach(([key, input]) => {
+    input.dataset.advance = key;
+    input.addEventListener('input', () => {
+      const ym = month.value;
+      if (!ym) return;
+      const amount = parseFloat(input.value) || 0;
+      const state = loadAdvanceState();
+      const monthAdvances = state[ym] ??= {};
+      const advances = monthAdvances[source] ??= {};
+      advances[key] = amount;
+      localStorage.setItem(ADVANCES_KEY, JSON.stringify(state));
+
+      const history = load();
+      if (history[ym]) {
+        history[ym][key] = amount;
+        save(history);
+        renderHistory();
+      }
+      vedRenderHistory();
+    });
+  });
+  // При первом открытии формы сохраняем её обычные значения по умолчанию.
+  const advances = loadAdvances(source, month.value);
+  Object.entries(fields).forEach(([key, input]) => {
+    if (advances[key] !== undefined) input.value = advances[key];
+  });
+  render();
+}
+
 // эффективное значение поля: ручная правка → иначе значение из калькулятора (или стандартный аванс) → иначе ручной ввод строки
 function vedEffective(row, ym) {
   const auto = row.source ? vedGetAutoData(row.source, ym) : null;
+  const advances = row.source ? loadAdvances(row.source, ym) : {};
+  const entered = {advOf: advances.officialAdvance, advNeof: advances.advance};
   const res = {};
   VED_FIELDS.forEach(f => {
-    let autoVal = auto && auto[f] !== undefined ? auto[f] : undefined;
+    let autoVal = entered[f] ?? auto?.[f];
     let isDefault = false;
     if (autoVal === undefined && f === 'advNeof' && row.source && VED_DEFAULT_ADV_NEOF[row.source] !== undefined) {
       autoVal = VED_DEFAULT_ADV_NEOF[row.source];
@@ -2745,12 +2808,12 @@ function vedEffective(row, ym) {
     }
     const hasAuto = autoVal !== undefined;
     let ov = row.ovr ? row.ovr[f] : undefined;
-    // официальный аванс вводится вручную: введённое значение главнее значения из расчёта
-    if ((ov === undefined || ov === '' || ov === null) && f === 'advOf' && row[f] !== '' && row[f] !== undefined && row[f] !== null) ov = row[f];
+    // Старый ручной аванс служит запасным значением, если в калькуляторе аванс не вводили.
+    if ((ov === undefined || ov === '' || ov === null) && f === 'advOf' && entered[f] === undefined) ov = row[f];
     let overridden = hasAuto && ov !== undefined && ov !== '' && ov !== null;
     // ручная правка, совпавшая со значением из калькулятора, — уже не правка
     if (overridden && Math.abs((parseFloat(ov) || 0) - (parseFloat(autoVal) || 0)) < 0.5) overridden = false;
-    res[f] = {hasAuto, isDefault, auto: autoVal, overridden, value: overridden ? ov : (hasAuto ? autoVal : row[f])};
+    res[f] = {hasAuto, isDefault, auto: autoVal, overridden, value: overridden ? ov : (hasAuto ? autoVal : (ov ?? row[f]))};
   });
   return res;
 }
@@ -2781,6 +2844,7 @@ function vedFlush() {
   clearTimeout(vedPersistTimer);
   vedPersistNow();
 }
+window.addEventListener('beforeunload', vedFlush);
 
 function vedPaidSum(row, ym) {
   const e = vedEffective(row, ym);
@@ -2826,10 +2890,10 @@ function vedMoneyCell(tr, row, field, eff) {
   }
   input.addEventListener('input', () => {
     const v = input.value;
-    if (eff.hasAuto) {
+    if (eff.hasAuto || (field === 'advOf' && row.source)) {
       const autoNow = vedEffective(row, vedMonthInput.value)[field].auto;
       row[field] = '';
-      if (v === '' || Math.abs((parseFloat(v) || 0) - (parseFloat(autoNow) || 0)) < 0.5) delete row.ovr[field];
+      if (v === '' || (autoNow !== undefined && Math.abs((parseFloat(v) || 0) - autoNow) < 0.5)) delete row.ovr[field];
       else row.ovr[field] = v;
     } else {
       row[field] = v;
@@ -3084,6 +3148,13 @@ if (vedInitialMonths.length > 0) {
   vedRows = vedDefaultRoster().map(r => vedNewRow(r));
 }
 vedRender();
+
+bindAdvances('oz', ozMonthInput, {officialAdvance: ozOfficialAdvanceInput, advance: ozAdvanceInput},
+  ozLoadHistoryRaw, ozSaveHistoryRaw, ozRender, ozRenderHistory);
+bindAdvances('ym', ymMonthInput, {officialAdvance: ymOfficialAdvanceInput, advance: ymAdvanceInput},
+  ymLoadHistoryRaw, ymSaveHistoryRaw, ymRender, ymRenderHistory);
+bindAdvances('rop', ropMonthInput, {officialAdvance: ropOfficialAdvanceInput, advance: ropAdvanceInput},
+  ropLoadHistoryRaw, ropSaveHistoryRaw, ropRender, ropRenderHistory);
 </script>
 <script src="vendor/xlsx.full.min.js"></script>
 <script src="js/parser.js"></script>

@@ -690,7 +690,7 @@
         hist[ym] = {oklad: ex.oklad != null ? ex.oklad : TARIFFS[tariffForMonth(ym)].oklad, manualOklad: !!ex.manualOklad, extra: ex.extra || 0, rows};
         saveHistoryRaw(hist);
       } else if (feed === 'oz') {
-        const hist = ozLoadHistoryRaw(); const ex = hist[ym] || {};
+        const hist = ozLoadHistoryRaw(); const ex = {...hist[ym], ...loadAdvances('oz', ym)};
         hist[ym] = {oklad: ex.oklad != null ? ex.oklad : 25000, extra: ex.extra || 0,
           officialAdvance: ex.officialAdvance != null ? ex.officialAdvance : 5420, officialSalary: ex.officialSalary != null ? ex.officialSalary : 8314,
           advance: ex.advance != null ? ex.advance : 11000, rows};
@@ -703,7 +703,7 @@
           if (ded > 0) { loan.paid += ded; loan.paidMonths.push(ym); ozSaveLoanState(loan); }
         }
       } else {
-        const hist = ymLoadHistoryRaw(); const ex = hist[ym] || {};
+        const hist = ymLoadHistoryRaw(); const ex = {...hist[ym], ...loadAdvances('ym', ym)};
         hist[ym] = {oklad: ex.oklad != null ? ex.oklad : 25000, extra: ex.extra || 0,
           officialAdvance: ex.officialAdvance != null ? ex.officialAdvance : 5421, officialSalary: ex.officialSalary != null ? ex.officialSalary : 8314,
           advance: ex.advance != null ? ex.advance : 10000, rows};
@@ -713,7 +713,8 @@
     });
     const sums = ropPreview(ym);
     if (Object.keys(sums).length) {
-      const hist = ropLoadHistoryRaw(); const ex = hist[ym] || {oklad: 80000, advance: 40000, margins: {}};
+      const hist = ropLoadHistoryRaw();
+      const ex = {oklad: 80000, advance: 40000, margins: {}, ...hist[ym], ...loadAdvances('rop', ym)};
       const m = ropMerge(ym, ex);
       ex.margins = m.margins; ex.cabinets = m.cabinets;
       hist[ym] = ex;
