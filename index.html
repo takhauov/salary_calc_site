@@ -2733,7 +2733,8 @@ const vedRowsBody = document.getElementById('ved-rows-body');
 
 const VED_FIELDS = ['advOf', 'advNeof', 'salOf', 'salNeof', 'prem'];
 
-// стандартные неофициальные авансы (не меняются из месяца в месяц); подставляются, если за месяц нет расчёта
+// Стандартные авансы подставляются, пока за месяц нет введённой суммы или расчёта.
+const VED_DEFAULT_ADV_OF = {oz: Number(ozOfficialAdvanceInput.defaultValue), ym: Number(ymOfficialAdvanceInput.defaultValue)};
 const VED_DEFAULT_ADV_NEOF = {wb: 20000, oz: 11000, ym: 10000, rop: 40000, as: 11000};
 
 const ADVANCES_KEY = 'salaryAdvances_v1';
@@ -2800,12 +2801,11 @@ function vedEffective(row, ym) {
   const entered = {advOf: advances.officialAdvance, advNeof: advances.advance};
   const res = {};
   VED_FIELDS.forEach(f => {
-    let autoVal = entered[f] ?? auto?.[f];
-    let isDefault = false;
-    if (autoVal === undefined && f === 'advNeof' && row.source && VED_DEFAULT_ADV_NEOF[row.source] !== undefined) {
-      autoVal = VED_DEFAULT_ADV_NEOF[row.source];
-      isDefault = true;
-    }
+    const calculated = entered[f] ?? auto?.[f];
+    const standard = f === 'advOf' ? VED_DEFAULT_ADV_OF[row.source] :
+      f === 'advNeof' ? VED_DEFAULT_ADV_NEOF[row.source] : undefined;
+    const autoVal = calculated ?? standard;
+    const isDefault = calculated === undefined && standard !== undefined;
     const hasAuto = autoVal !== undefined;
     let ov = row.ovr ? row.ovr[f] : undefined;
     // Старый ручной аванс служит запасным значением, если в калькуляторе аванс не вводили.
