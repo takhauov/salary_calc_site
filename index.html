@@ -2442,10 +2442,12 @@ const asSchoolsInput = document.getElementById('as-schools-input');
 
 const AS_BASE_ADVANCE = 11000;
 const AS_BASE_SALARY = 10000;
+const AS_OFFICIAL_ADVANCE = Number(asOfficialAdvanceInput.defaultValue);
+const AS_OFFICIAL_SALARY = Number(asOfficialSalaryInput.defaultValue);
 
 function asCalc(e) {
-  const officialAdvance = parseFloat(e.officialAdvance) || 0;
-  const officialSalary = parseFloat(e.officialSalary) || 0;
+  const officialAdvance = parseFloat(e.officialAdvance ?? AS_OFFICIAL_ADVANCE) || 0;
+  const officialSalary = parseFloat(e.officialSalary ?? AS_OFFICIAL_SALARY) || 0;
   const bloggers = parseFloat(e.bloggers) || 0;
   const purchaseBonus = (parseFloat(e.purchaseVolume) || 0) * 0.01;
   const schools = parseFloat(e.schools) || 0;
@@ -2564,8 +2566,8 @@ function asGetAutoData(ym) {
 }
 
 function asFillForm(entry) {
-  asOfficialAdvanceInput.value = entry.officialAdvance || 0;
-  asOfficialSalaryInput.value = entry.officialSalary || 0;
+  asOfficialAdvanceInput.value = entry.officialAdvance ?? AS_OFFICIAL_ADVANCE;
+  asOfficialSalaryInput.value = entry.officialSalary ?? AS_OFFICIAL_SALARY;
   asBloggersInput.value = entry.bloggers || '';
   asTouched = entry.purchaseManual === undefined ? !!entry.purchaseVolume : !!entry.purchaseManual;
   asPurchaseVolumeInput.value = entry.purchaseVolume || '';
@@ -2733,8 +2735,8 @@ const vedRowsBody = document.getElementById('ved-rows-body');
 
 const VED_FIELDS = ['advOf', 'advNeof', 'salOf', 'salNeof', 'prem'];
 
-// Стандартные авансы подставляются, пока за месяц нет введённой суммы или расчёта.
-const VED_DEFAULT_ADV_OF = {oz: Number(ozOfficialAdvanceInput.defaultValue), ym: Number(ymOfficialAdvanceInput.defaultValue)};
+// Стандартные суммы подставляются, пока за месяц нет введённой суммы или расчёта.
+const VED_DEFAULT_ADV_OF = {oz: Number(ozOfficialAdvanceInput.defaultValue), ym: Number(ymOfficialAdvanceInput.defaultValue), as: AS_OFFICIAL_ADVANCE};
 const VED_DEFAULT_ADV_NEOF = {wb: 20000, oz: 11000, ym: 10000, rop: 40000, as: 11000};
 
 const ADVANCES_KEY = 'salaryAdvances_v1';
@@ -2803,13 +2805,15 @@ function vedEffective(row, ym) {
   VED_FIELDS.forEach(f => {
     const calculated = entered[f] ?? auto?.[f];
     const standard = f === 'advOf' ? VED_DEFAULT_ADV_OF[row.source] :
-      f === 'advNeof' ? VED_DEFAULT_ADV_NEOF[row.source] : undefined;
+      f === 'advNeof' ? VED_DEFAULT_ADV_NEOF[row.source] :
+      f === 'salOf' && row.source === 'as' ? AS_OFFICIAL_SALARY : undefined;
     const autoVal = calculated ?? standard;
     const isDefault = calculated === undefined && standard !== undefined;
     const hasAuto = autoVal !== undefined;
     let ov = row.ovr ? row.ovr[f] : undefined;
     // Старый ручной аванс служит запасным значением, если в калькуляторе аванс не вводили.
     if ((ov === undefined || ov === '' || ov === null) && f === 'advOf' && entered[f] === undefined) ov = row[f];
+    if ((ov === undefined || ov === '' || ov === null) && f === 'salOf' && isDefault) ov = row[f];
     let overridden = hasAuto && ov !== undefined && ov !== '' && ov !== null;
     // ручная правка, совпавшая со значением из калькулятора, — уже не правка
     if (overridden && Math.abs((parseFloat(ov) || 0) - (parseFloat(autoVal) || 0)) < 0.5) overridden = false;
@@ -2884,7 +2888,7 @@ function vedMoneyCell(tr, row, field, eff) {
     const e = vedEffective(row, vedMonthInput.value)[field];
     input.classList.toggle('ved-auto', e.hasAuto && !e.overridden);
     input.classList.toggle('ved-ovr', e.overridden);
-    const src = e.isDefault ? 'Стандартный аванс' : 'Калькулятор';
+    const src = e.isDefault ? (field === 'salOf' ? 'Стандартная зарплата' : 'Стандартный аванс') : 'Калькулятор';
     input.title = e.hasAuto ? (e.overridden ? 'Изменено вручную. ' + src + ': ' + Math.round(parseFloat(e.auto) || 0) + ' ₽' : 'Из: ' + src.toLowerCase()) : '';
     reset.classList.toggle('on', e.overridden);
   }
